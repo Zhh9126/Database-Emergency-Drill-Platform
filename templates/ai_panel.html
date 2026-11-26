@@ -1,0 +1,132 @@
+<!-- AI 助手侧边面板 -->
+<div class="chat-panel" id="aiChatPanel">
+    <div class="chat-panel-header">
+        <h5><i class="bi bi-robot"></i> AI 运维助手</h5>
+        <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="aiPanelNewSession()" title="新对话">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleAIPanel()" title="关闭">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    </div>
+    <div class="chat-messages" id="aiPanelMessages">
+        <div class="chat-msg assistant">
+            <div class="chat-msg-avatar"><i class="bi bi-robot"></i></div>
+            <div class="chat-msg-bubble">
+                您好！我是 AI 运维助手。<br>
+                我可以帮您：<br>
+                · 执行健康检查<br>
+                · 进行切换演习 (Dry-Run)<br>
+                · 执行正式主从切换<br>
+                · 诊断数据库问题<br><br>
+                {% if not active_ai %}
+                <small class="text-muted">提示：请先在 <a href="/ai-settings">AI 模型配置</a> 中配置大模型</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="chat-input-area">
+        <div class="chat-input-row">
+            <input type="text" id="aiPanelInput" placeholder="输入消息... (Ctrl+Enter 发送)"
+                   onkeydown="if(event.ctrlKey && event.key==='Enter')aiPanelSend()">
+            <button class="chat-send-btn" id="aiPanelSendBtn" onclick="aiPanelSend()">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let panelSessionId = null;
+
+    window.aiPanelNewSession = async function() {
+        panelSessionId = 'panel_' + Date.now();
+        const container = document.getElementById('aiPanelMessages');
+        container.innerHTML = `<div class="chat-msg assistant">
+            <div class="chat-msg-avatar"><i class="bi bi-robot"></i></div>
+            <div class="chat-msg-bubble">新对话已开始，请告诉我您需要什么帮助？</div>
+        </div>`;
+        localStorage.setItem('ai_panel_session_id', panelSessionId);
+    };
+
+    window.aiPanelSend = async function() {
+        const input = document.getElementById('aiPanelInput');
+        const msg = input.value.trim();
+        if (!msg) return;
+        input.value = '';
+        input.disabled = true;
+        document.getElementById('aiPanelSendBtn').disabled = true;
+
+        appendMsg('user', msg);
+        const typingId = appendTyping();
+
+        try {
+            const resp = await fetch('/api/ai/chat', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    message: msg,
+                    session_id: panelSessionId || 'default',
+                }),
+            });
+            const data = await resp.json();
+
+            removeTyping(typingId);
+
+            if (data.error) {
+                appendMsg('assistant', '⚠ ' + data.error);
+            } else {
+                appendMsg('assistant', data.reply);
+                if (data.tool_calls && data.tool_calls.length > 0) {
+                    for (const tc of data.tool_calls) {
+                        appendMsg('assistant',
+                            '<div style="font-size:.75rem;background:rgba(13,148,136,.1);border-radius:6px;padding:6px 10px;margin-top:6px">'
+                            + '🔧 调用了工具: <code>' + tc.name + '</code></div>');
+                    }
+                }
+            }
+        } catch(e) {
+            removeTyping(typingId);
+            appendMsg('assistant', '⚠ 请求失败: ' + e.message);
+        }
+
+        input.disabled = false;
+        document.getElementById('aiPanelSendBtn').disabled = false;
+        input.focus();
+    };
+
+    function appendMsg(role, content) {
+        const container = document.getElementById('aiPanelMessages');
+        const div = document.createElement('div');
+        div.className = 'chat-msg ' + role;
+        div.innerHTML = `
+            <div class="chat-msg-avatar">${role==='user'?'<i class="bi bi-person-fill"></i>':'<i class="bi bi-robot"></i>'}</div>
+            <div class="chat-msg-bubble">${content}</div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        return div.id;
+    }
+
+    function appendTyping() {
+        const container = document.getElementById('aiPanelMessages');
+        const div = document.createElement('div');
+        div.className = 'chat-msg assistant';
+        div.id = 'typing-' + Date.now();
+        div.innerHTML = `<div class="chat-msg-avatar"><i class="bi bi-robot"></i></div>
+            <div class="chat-msg-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        return div.id;
+    }
+
+    function removeTyping(id) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    }
+
+    const saved = localStorage.getItem('ai_panel_session_id');
+    if (saved) panelSessionId = saved;
+})();
+</script>

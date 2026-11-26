@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}AI 助手{% endblock %}
+{% block extra_css %}
+<style>
+    .chat-fullpage {
+        display: flex; flex-direction: column;
+        height: calc(100vh - 80px);
+        background: var(--slate-50);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+    .chat-fullpage-header {
+        padding: var(--space-3) var(--space-5);
+        background: #fff;
+        border-bottom: 1px solid var(--slate-200);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .chat-fullpage-header h4 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+    .chat-fullpage-body {
+        flex: 1; overflow-y: auto; padding: var(--space-4);
+        display: flex; flex-direction: column; gap: 12px;
+    }
+    .chat-fullpage-footer {
+        padding: var(--space-3) var(--space-4);
+        background: #fff;
+        border-top: 1px solid var(--slate-200);
+    }
+    .chat-fullpage .chat-msg { display: flex; gap: 10px; max-width: 85%; }
+    .chat-fullpage .chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .chat-fullpage .chat-msg.assistant { align-self: flex-start; }
+    .chat-fullpage .chat-msg-avatar {
+        width: 32px; height: 32px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: .85rem; flex-shrink: 0;
+    }
+    .chat-fullpage .chat-msg.user .chat-msg-avatar { background: var(--teal-100); color: var(--teal-700); }
+    .chat-fullpage .chat-msg.assistant .chat-msg-avatar { background: var(--slate-100); color: var(--slate-600); }
+    .chat-fullpage .chat-msg-bubble {
+        padding: 10px 14px; border-radius: 14px;
+        font-size: .9rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+    }
+    .chat-fullpage .chat-msg.user .chat-msg-bubble { background: var(--teal-500); color: #fff; border-bottom-right-radius: 4px; }
+    .chat-fullpage .chat-msg.assistant .chat-msg-bubble { background: #fff; color: var(--slate-800); border-bottom-left-radius: 4px; box-shadow: var(--shadow-sm); }
+    .chat-fullpage-input-row {
+        display: flex; gap: 8px; align-items: center;
+    }
+    .chat-fullpage-input-row input {
+        flex: 1; padding: 10px 14px; border: 1px solid var(--slate-200);
+        border-radius: var(--radius-md); font-size: .9rem; outline: none;
+        transition: border-color .15s;
+    }
+    .chat-fullpage-input-row input:focus { border-color: var(--teal-400); }
+    .chat-fullpage-send {
+        width: 40px; height: 40px; border-radius: 50%;
+        background: var(--teal-500); color: #fff; border: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1rem; transition: background .15s;
+    }
+    .chat-fullpage-send:hover { background: var(--teal-600); }
+    .chat-fullpage-send:disabled { background: var(--slate-300); cursor: not-allowed; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="chat-fullpage">
+    <div class="chat-fullpage-header">
+        <h4><i class="bi bi-robot"></i> AI 运维助手</h4>
+        <button class="btn btn-ghost btn-sm" onclick="aiNewSession()" title="新对话">
+            <i class="bi bi-plus-lg"></i> 新对话
+        </button>
+    </div>
+    <div class="chat-fullpage-body" id="aiMessages">
+        <div class="chat-msg assistant">
+            <div class="chat-msg-avatar"><i class="bi bi-robot"></i></div>
+            <div class="chat-msg-bubble">
+                您好！我是 AI 运维助手。<br>
+                我可以帮您：<br>
+                · 执行健康检查<br>
+                · 进行切换演习 (Dry-Run)<br>
+                · 执行正式主从切换<br>
+                · 诊断数据库问题
+            </div>
+        </div>
+    </div>
+    <div class="chat-fullpage-footer">
+        <div class="chat-fullpage-input-row">
+            <input type="text" id="aiInput" placeholder="输入消息... (Ctrl+Enter 发送)"
+                   onkeydown="if(event.ctrlKey && event.key==='Enter')aiSend()">
+            <button class="chat-fullpage-send" id="aiSendBtn" onclick="aiSend()">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let aiSessionId = null;
+
+    window.aiNewSession = async function() {
+        aiSessionId = 'session_' + Date.now();
+        const container = document.getElementById('aiMessages');
+        container.innerHTML = `<div class="chat-msg assistant">
+            <div class="chat-msg-avatar"><i class="bi bi-robot"></i></div>
+            <div class="chat-msg-bubble">新对话已开始，请告诉我您需要什么帮助？</div>
+        </div>`;
+        localStorage.setItem('ai_session_id', aiSessionId);
+    };
+
+    window.aiSend = async function() {
+        const input = document.getElementById('aiInput');
+        const msg = input.value.trim();
+        if (!msg) return;
+        input.value = '';
+        input.disabled = true;
+        document.getElementById('aiSendBtn').disabled = true;
+
+        appendMsg('user', msg);
+        const typingId = appendTyping();
+
+        try {
+            const resp = await fetch('/api/ai/chat', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    message: msg,
+                    session_id: aiSessionId || 'default',
+                }),
+            });
+            const data = await resp.json();
+
+            removeTyping(typingId);
+
+            if (data.error) {
+                appendMsg('assistant', '⚠ ' + data.error);
+            } else {
+                appendMsg('assistant', data.reply);
+                if (data.tool_calls && data.tool_calls.length > 0) {
+                    for (const tc of data.tool_calls) {
+                        appendMsg('assistant',
+                            '<div style="font-size:.75rem;background:rgba(13,148,136,.1);border-radius:6px;padding:6px 10px;margin-top:6px">'
+                            + '🔧 调用了工具: <code>' + tc.name + '</code></div>');
+                    }
+                }
+            }
+        } catch(e) {
+            removeTyping(typingId);
+            appendMsg('assistant', '⚠ 请求失败: ' + e.message);
+        }
+
+        input.disabled = false;
+        document.getElementById('aiSendBtn').disabled = false;
+        input.focus();
+    };
+
+    function appendMsg(role, content) {
+        const container = document.getElementById('aiMessages');
+        const div = document.createElement('div');
+        div.className = 'chat-msg ' + role;
+        div.innerHTML = `
+            <div class="chat-msg-avatar">${role==='user'?'<i class="bi bi-person-fill"></i>':'<i class="bi bi-robot"></i>'}</div>
+            <div class="chat-msg-bubble">${content}</div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function appendTyping() {
+        const container = document.getElementById('aiMessages');
+        const div = document.createElement('div');
+        div.className = 'chat-msg assistant';
+        div.id = 'typing-' + Date.now();
+        div.innerHTML = `<div class="chat-msg-avatar"><i class="bi bi-robot"></i></div>
+            <div class="chat-msg-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        return div.id;
+    }
+
+    function removeTyping(id) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    }
+
+    const saved = localStorage.getItem('ai_session_id');
+    if (saved) aiSessionId = saved;
+})();
+</script>
+{% endblock %}

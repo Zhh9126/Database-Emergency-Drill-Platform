@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}历史记录 - 应急演练平台{% endblock %}
+{% block page_title %}历史记录{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-3)">
+    <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center">
+        <span class="text-sm" style="color:var(--slate-500)">筛选:</span>
+        <div class="db-type-tabs" style="margin-bottom:0">
+            <a href="/history" class="db-type-tab {% if not current_db_type %}active{% endif %}">全部</a>
+            <a href="/history?db_type=mysql{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mysql' %}active{% endif %}"><i class="bi bi-database-fill-gear me-1"></i>MySQL</a>
+            <a href="/history?db_type=oracle{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'oracle' %}active{% endif %}"><i class="bi bi-database-fill-lock me-1"></i>Oracle</a>
+            <a href="/history?db_type=postgresql{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'postgresql' %}active{% endif %}"><i class="bi bi-server me-1"></i>PG</a>
+            <a href="/history?db_type=redis{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'redis' %}active{% endif %}"><i class="bi bi-lightning-fill me-1"></i>Redis</a>
+            <a href="/history?db_type=dameng{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'dameng' %}active{% endif %}"><i class="bi bi-diagram-3 me-1"></i>达梦</a>
+            <a href="/history?db_type=kingbase{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'kingbase' %}active{% endif %}"><i class="bi bi-shield-lock me-1"></i>金仓</a>
+            <a href="/history?db_type=opengauss{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'opengauss' %}active{% endif %}"><i class="bi bi-hdd-network me-1"></i>openGauss</a>
+            <a href="/history?db_type=oceanbase{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'oceanbase' %}active{% endif %}"><i class="bi bi-cloud-arrow-up me-1"></i>OceanBase</a>
+            <a href="/history?db_type=tidb{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'tidb' %}active{% endif %}"><i class="bi bi-distribute-vertical me-1"></i>TiDB</a>
+            <a href="/history?db_type=mongodb{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mongodb' %}active{% endif %}"><i class="bi bi-database me-1"></i>MongoDB</a>
+            <a href="/history?db_type=highgo{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'highgo' %}active{% endif %}"><i class="bi bi-hdd-stack me-1"></i>瀚高</a>
+            <a href="/history?db_type=mw_nginx{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mw_nginx' %}active{% endif %}"><i class="bi bi-cloud-arrow-through me-1"></i>Nginx</a>
+            <a href="/history?db_type=mw_tomcat{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mw_tomcat' %}active{% endif %}"><i class="bi bi-app-indicator me-1"></i>Tomcat</a>
+            <a href="/history?db_type=mw_kafka{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mw_kafka' %}active{% endif %}"><i class="bi bi-diagram-2 me-1"></i>Kafka</a>
+            <a href="/history?db_type=mw_zookeeper{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mw_zookeeper' %}active{% endif %}"><i class="bi bi-diagram-3 me-1"></i>ZK</a>
+            <a href="/history?db_type=mw_elasticsearch{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mw_elasticsearch' %}active{% endif %}"><i class="bi bi-search me-1"></i>ES</a>
+            <a href="/history?db_type=mw_rabbitmq{% if current_status %}&status={{ current_status }}{% endif %}" class="db-type-tab {% if current_db_type == 'mw_rabbitmq' %}active{% endif %}"><i class="bi bi-envelope-paper me-1"></i>RabbitMQ</a>
+        </div>
+        <select class="form-select form-select-sm" style="width:auto" onchange="window.location=this.value">
+            <option value="/history{% if current_db_type %}?db_type={{ current_db_type }}{% endif %}">所有状态</option>
+            <option value="/history?status=success{% if current_db_type %}&db_type={{ current_db_type }}{% endif %}" {% if current_status=='success' %}selected{% endif %}>成功</option>
+            <option value="/history?status=failed{% if current_db_type %}&db_type={{ current_db_type }}{% endif %}" {% if current_status=='failed' %}selected{% endif %}>失败</option>
+        </select>
+    </div>
+    <span class="text-sm" style="color:var(--slate-500)">共 {{ pagination.total }} 条记录</span>
+</div>
+
+<div class="card" style="box-shadow:var(--shadow-sm)">
+    <div class="card-body" style="padding:0">
+        {% if tasks %}
+        <div class="table-wrap"><table class="table-v3">
+            <thead><tr>
+                <th>任务ID</th><th>类型</th><th>配置</th><th>切换方向</th><th>切换后</th><th>状态</th><th>触发</th><th>耗时</th><th>操作</th>
+            </tr></thead>
+            <tbody>
+            {% for t in tasks %}
+            <tr>
+                <td><a href="/logs/{{ t.task_id }}" class="text-mono">{{ t.task_id[:8] }}...</a></td>
+                <td>
+                    {% if t.db_type in ('oracle', 'oracle_rac') %}
+                    <span class="oracle-badge">Oracle{% if t.db_type == 'oracle_rac' %} RAC{% endif %}</span>
+                    {% elif t.db_type == 'postgresql' %}
+                    <span class="badge" style="background:#DBEAFE;color:#1D4ED8">PG</span>
+                    {% elif t.db_type == 'redis' %}
+                    <span class="badge" style="background:#FEE2E2;color:#DC2626">Redis</span>
+                    {% elif t.db_type == 'dameng' %}
+                    <span class="dm-badge"><i class="bi bi-diagram-3 me-1"></i>达梦</span>
+                    {% elif t.db_type == 'kingbase' %}
+                    <span class="kb-badge"><i class="bi bi-shield-lock me-1"></i>金仓</span>
+                    {% elif t.db_type == 'opengauss' %}
+                    <span class="og-badge"><i class="bi bi-hdd-network me-1"></i>openGauss</span>
+                    {% elif t.db_type == 'oceanbase' %}
+                    <span class="ob-badge"><i class="bi bi-cloud-arrow-up me-1"></i>OceanBase</span>
+                    {% elif t.db_type == 'tidb' %}
+                    <span class="tidb-badge"><i class="bi bi-distribute-vertical me-1"></i>TiDB</span>
+                    {% elif t.db_type == 'mongodb' %}
+                    <span class="mongo-badge"><i class="bi bi-database me-1"></i>MongoDB</span>
+                    {% elif t.db_type == 'highgo' %}
+                    <span class="hg-badge"><i class="bi bi-hdd-stack me-1"></i>瀚高</span>
+                    {% elif t.db_type and t.db_type.startswith('mw_') %}
+                    <span class="badge" style="background:#F3F4F6;color:#374151;border:1px solid #D1D5DB"><i class="bi bi-hdd-rack me-1"></i>{{ t.db_type[3:]|upper }}</span>
+                    {% elif t.db_type == 'mysql' %}
+                        {% if t.config and t.config.mysql_subtype == 'mgr_single' %}
+                    <span class="mysql-badge"><i class="bi bi-database-fill-gear me-1"></i>MySQL MGR单主</span>
+                        {% elif t.config and t.config.mysql_subtype == 'mgr_multi' %}
+                    <span class="mysql-badge"><i class="bi bi-database-fill-gear me-1"></i>MySQL MGR多主</span>
+                        {% else %}
+                    <span class="mysql-badge"><i class="bi bi-database-fill-gear me-1"></i>MySQL 主从</span>
+                        {% endif %}
+                    {% else %}
+                    <span class="mysql-badge">MySQL</span>
+                    {% endif %}
+                </td>
+                <td><small>{{ t.config_name or '-' }}</small></td>
+                <td class="text-xs">
+                    <span>{{ t.master_host }}:{{ t.master_port }}{% if t.oracle_primary_sid %}/{{ t.oracle_primary_sid }}{% endif %}</span>
+                    <span class="text-muted">⇄</span>
+                    <span>{{ t.slave_host }}:{{ t.slave_port }}{% if t.oracle_standby_sid %}/{{ t.oracle_standby_sid }}{% endif %}</span>
+                </td>
+                <td class="text-xs">
+                    {% if t.new_master_host %}
+                    <span class="text-success">{{ t.new_master_host }}:{{ t.new_master_port }}</span>
+                    <span class="text-muted">⇄</span>
+                    <span>{{ t.new_slave_host }}:{{ t.new_slave_port }}</span>
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    {% if t.status == 'success' %}<span class="badge badge-success">成功</span>
+                    {% elif t.status == 'failed' %}<span class="badge badge-danger">失败</span>
+                    {% elif t.status == 'running' %}<span class="badge badge-warning">执行中</span>
+                    {% else %}<span class="badge badge-slate">{{ t.status }}</span>{% endif %}
+                </td>
+                <td>{% if t.triggered_by == 'ai' %}<span class="badge badge-teal">AI</span>{% else %}手动{% endif %}</td>
+                <td>{{ t.duration_seconds }}s</td>
+                <td>
+                    <a href="/logs/{{ t.task_id }}" class="btn btn-outline btn-sm">详情</a>
+                    {% if t.status in ('success','failed') %}
+                    <a href="/api/history/{{ t.task_id }}/report.pdf" class="btn btn-ghost btn-sm" title="下载 PDF 报告"><i class="bi bi-file-earmark-pdf"></i></a>
+                    <a href="/api/history/{{ t.task_id }}/report.docx" class="btn btn-ghost btn-sm" title="下载 Word 报告"><i class="bi bi-file-earmark-word"></i></a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-clock-history"></i>
+            <p>暂无记录</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 分页 -->
+{% if pagination.pages > 1 %}
+<nav class="pagination-nav">
+    {% if pagination.has_prev %}
+    <a class="page-link" href="?page={{ pagination.prev_num }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_db_type %}&db_type={{ current_db_type }}{% endif %}">上一页</a>
+    {% endif %}
+    <span class="text-sm" style="color:var(--slate-500)">{{ pagination.page }} / {{ pagination.pages }}</span>
+    {% if pagination.has_next %}
+    <a class="page-link" href="?page={{ pagination.next_num }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_db_type %}&db_type={{ current_db_type }}{% endif %}">下一页</a>
+    {% endif %}
+</nav>
+{% endif %}
+{% endblock %}

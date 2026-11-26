@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 - 应急演练平台{% endblock %}
+{% block page_title %}仪表盘{% endblock %}
+
+{% block content %}
+<div class="page-gradient">
+
+<!-- 欢迎横幅 -->
+<div class="welcome-banner">
+    <h2><i class="bi bi-shield-check me-2"></i>高可用应急演练平台</h2>
+    <p>覆盖 11 种主流数据库 + 6 种中间件 · 支持主备切换 / 集群关停 / AI 辅助运维 · 信创全面兼容</p>
+    <div class="banner-stats">
+        <div class="banner-stat">
+            <div class="banner-stat-icon"><i class="bi bi-arrow-left-right"></i></div>
+            <div>
+                <div class="banner-stat-num">{{ total }}</div>
+                <div class="banner-stat-label">演练总次数</div>
+            </div>
+        </div>
+        <div class="banner-stat">
+            <div class="banner-stat-icon" style="background:rgba(255,255,255,.12);color:#A8D8C8"><i class="bi bi-check-circle"></i></div>
+            <div>
+                <div class="banner-stat-num" style="color:#A8D8C8">{{ success }}</div>
+                <div class="banner-stat-label">成功率 {% if total %}{{ "%.0f"|format(success / total * 100) }}%{% else %}--{% endif %}</div>
+            </div>
+        </div>
+        <div class="banner-stat">
+            <div class="banner-stat-icon" style="background:rgba(255,255,255,.12);color:#AEC4E6"><i class="bi bi-gear"></i></div>
+            <div>
+                <div class="banner-stat-num" style="color:#AEC4E6">{{ configs|length }}</div>
+                <div class="banner-stat-label">活跃配置</div>
+            </div>
+        </div>
+        {% if active_ai %}
+        <div class="banner-stat">
+            <div class="banner-stat-icon" style="background:rgba(255,255,255,.12);color:#C4D4E8"><i class="bi bi-robot"></i></div>
+            <div>
+                <div class="banner-stat-num" style="color:#C4D4E8">AI</div>
+                <div class="banner-stat-label">{{ active_ai.model_name }}</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 核心统计卡片 -->
+<div class="stats-grid">
+    <div class="stat-card-v3">
+        <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div class="stat-icon-wrap" style="background:var(--teal-100);color:var(--teal-700)"><i class="bi bi-arrow-left-right"></i></div>
+            <div>
+                <div class="stat-num">{{ total }}</div>
+                <div class="stat-desc">演练总次数</div>
+            </div>
+        </div>
+        <div class="stat-bar teal"></div>
+    </div>
+    <div class="stat-card-v3">
+        <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div class="stat-icon-wrap" style="background:var(--success-bg);color:var(--success)"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-num" style="color:var(--success)">{{ success }}</div>
+                <div class="stat-desc">成功次数</div>
+            </div>
+        </div>
+        <div class="stat-bar green"></div>
+    </div>
+    <div class="stat-card-v3">
+        <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div class="stat-icon-wrap" style="background:var(--danger-bg);color:var(--danger)"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-num" style="color:var(--danger)">{{ failed }}</div>
+                <div class="stat-desc">失败次数</div>
+            </div>
+        </div>
+        <div class="stat-bar red"></div>
+    </div>
+    <div class="stat-card-v3">
+        <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div class="stat-icon-wrap" style="background:var(--info-bg);color:var(--info)"><i class="bi bi-gear-fill"></i></div>
+            <div>
+                <div class="stat-num" style="color:var(--info)">{{ configs|length }}</div>
+                <div class="stat-desc">配置数量</div>
+            </div>
+        </div>
+        <div class="stat-bar blue"></div>
+    </div>
+</div>
+
+<!-- 数据库与中间件支持矩阵 -->
+<div class="card mb-4" style="margin-bottom:var(--space-6)">
+    <div class="card-header-v3">
+        <span class="header-icon"><i class="bi bi-grid-3x3-gap-fill"></i> 数据库与中间件演练分布</span>
+        <a href="/configure" class="btn btn-v3-outline btn-v3" style="font-size:.76rem;padding:4px 12px">管理配置</a>
+    </div>
+    <div class="card-body">
+        <div class="db-matrix">
+            <div class="db-matrix-item">
+                <div class="db-icon icon-mysql"><i class="bi bi-database-fill-gear"></i></div>
+                <div class="db-name">MySQL</div>
+                <div class="db-count">{{ mysql_total }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-oracle"><i class="bi bi-database-fill-lock"></i></div>
+                <div class="db-name">Oracle</div>
+                <div class="db-count">{{ oracle_total }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-pg"><i class="bi bi-server"></i></div>
+                <div class="db-name">PostgreSQL</div>
+                <div class="db-count">{{ pg_total }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-redis"><i class="bi bi-lightning-fill"></i></div>
+                <div class="db-name">Redis</div>
+                <div class="db-count">{{ redis_total }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-dm"><i class="bi bi-diagram-3"></i></div>
+                <div class="db-name">达梦</div>
+                <div class="db-count">{{ dm_total }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-kb"><i class="bi bi-shield-lock"></i></div>
+                <div class="db-name">金仓</div>
+                <div class="db-count">{{ kb_total }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-og"><i class="bi bi-hdd-network"></i></div>
+                <div class="db-name">openGauss</div>
+                <div class="db-count">{{ og_total|default(0) }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-ob"><i class="bi bi-cloud-arrow-up"></i></div>
+                <div class="db-name">OceanBase</div>
+                <div class="db-count">{{ ob_total|default(0) }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-tidb"><i class="bi bi-distribute-vertical"></i></div>
+                <div class="db-name">TiDB</div>
+                <div class="db-count">{{ tidb_total|default(0) }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-mongo"><i class="bi bi-database"></i></div>
+                <div class="db-name">MongoDB</div>
+                <div class="db-count">{{ mongo_total|default(0) }} 次演练</div>
+            </div>
+            <div class="db-matrix-item">
+                <div class="db-icon icon-hg"><i class="bi bi-hdd-stack"></i></div>
+                <div class="db-name">瀚高</div>
+                <div class="db-count">{{ hg_total|default(0) }} 次演练</div>
+            </div>
+        </div>
+        <!-- 中间件区 -->
+        <div style="margin-top:var(--space-4)">
+            <h6 style="color:var(--slate-400);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)"><i class="bi bi-hdd-rack-fill me-1"></i>中间件及应用服务</h6>
+            <div class="db-matrix">
+                {% for mw_type, mw_label, mw_icon, mw_color in [
+                    ('nginx', 'Nginx', 'bi-cloud-arrow-through-fill', '#5B8F6E'),
+                    ('tomcat', 'Tomcat', 'bi-app-indicator', '#C2765F'),
+                    ('kafka', 'Kafka', 'bi-diagram-2-fill', '#5A5E66'),
+                    ('zookeeper', 'ZooKeeper', 'bi-diagram-3-fill', '#A9844A'),
+                    ('elasticsearch', 'Elasticsearch', 'bi-search', '#3E8A99'),
+                    ('rabbitmq', 'RabbitMQ', 'bi-envelope-paper-fill', '#B06A4E'),
+                ] %}
+                <div class="db-matrix-item">
+                    <div class="db-icon" style="background:{{ mw_color }}22;color:{{ mw_color }}"><i class="bi {{ mw_icon }}"></i></div>
+                    <div class="db-name">{{ mw_label }}</div>
+                    <div class="db-count">{{ mw_counts.get(mw_type, 0) if mw_counts else 0 }} 次演练</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 双栏内容 -->
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-5);">
+    <!-- 最近演练记录 -->
+    <div class="card">
+        <div class="card-header-v3">
+            <span class="header-icon"><i class="bi bi-list-ul"></i> 最近演练记录</span>
+            <div style="display:flex;gap:8px;align-items:center">
+                <a href="/switchover" class="btn btn-v3-primary btn-v3" style="font-size:.76rem;padding:5px 14px"><i class="bi bi-play-fill"></i> 执行切换</a>
+                <a href="/history" class="btn btn-v3-outline btn-v3" style="font-size:.76rem;padding:5px 14px">查看全部</a>
+            </div>
+        </div>
+        <div class="card-body" style="padding:0">
+            {% if recent %}
+            <div class="table-wrap"><table class="table-v3">
+                <thead><tr>
+                    <th>任务ID</th><th>数据库</th><th>切换方向</th><th>状态</th><th>触发</th><th>耗时</th><th>时间</th>
+                </tr></thead>
+                <tbody>
+                {% for t in recent %}
+                <tr>
+                    <td><a href="/logs/{{ t.task_id }}" class="text-mono" style="color:var(--teal-600)">{{ t.task_id[:8] }}...</a></td>
+                    <td>
+                        {% if t.db_type == 'mysql' %}
+                        <span class="mysql-badge">MySQL</span>
+                        {% elif t.db_type in ('oracle', 'oracle_rac') %}
+                        <span class="oracle-badge">Oracle{% if t.db_type == 'oracle_rac' %} RAC{% endif %}</span>
+                        {% elif t.db_type == 'postgresql' %}
+                        <span class="badge badge-info">PG</span>
+                        {% elif t.db_type == 'redis' %}
+                        <span class="badge badge-danger">Redis</span>
+                        {% elif t.db_type == 'dameng' %}
+                        <span class="dm-badge">达梦</span>
+                        {% elif t.db_type == 'kingbase' %}
+                        <span class="kb-badge">金仓</span>
+                        {% elif t.db_type == 'opengauss' %}
+                        <span class="og-badge">openGauss</span>
+                        {% elif t.db_type == 'oceanbase' %}
+                        <span class="ob-badge">OceanBase</span>
+                        {% elif t.db_type == 'tidb' %}
+                        <span class="tidb-badge">TiDB</span>
+                        {% elif t.db_type == 'mongodb' %}
+                        <span class="mongo-badge">MongoDB</span>
+                        {% elif t.db_type == 'highgo' %}
+                        <span class="hg-badge">瀚高</span>
+                        {% elif t.db_type.startswith('mw_') %}
+                        <span class="badge" style="background:#F3F4F6;color:#374151;border:1px solid #D1D5DB">{{ t.db_type[3:]|upper }}</span>
+                        {% else %}
+                        <span class="badge badge-slate">{{ t.db_type }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <small class="text-mono">{{ t.master_host }}:{{ t.master_port }}</small>
+                        <span style="color:var(--teal-500)">→</span>
+                        <small class="text-mono">{{ t.slave_host }}:{{ t.slave_port }}</small>
+                    </td>
+                    <td>
+                        {% if t.status == 'success' %}
+                        <span class="status-pill success" style="background:var(--success-bg);color:#059669">成功</span>
+                        {% elif t.status == 'failed' %}
+                        <span class="status-pill failed" style="background:var(--danger-bg);color:#DC2626">失败</span>
+                        {% elif t.status == 'running' %}
+                        <span class="status-pill running" style="background:var(--warning-bg);color:#D97706">执行中</span>
+                        {% else %}
+                        <span class="badge badge-slate">{{ t.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.triggered_by == 'ai' %}
+                        <span class="badge badge-teal"><i class="bi bi-robot"></i> AI</span>
+                        {% else %}
+                        <span class="badge badge-slate"><i class="bi bi-person"></i> 手动</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="text-mono">{{ t.duration_seconds }}s</span></td>
+                    <td class="text-xs" style="color:var(--slate-500)">{{ t.start_time.strftime('%m-%d %H:%M') if t.start_time else '-' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table></div>
+            {% else %}
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <h5>暂无演练记录</h5>
+                <p>点击「执行切换」开始第一次演练</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 右侧栏：配置 + AI -->
+    <div style="display:flex;flex-direction:column;gap:var(--space-5)">
+        <!-- 已保存配置 -->
+        <div class="card">
+            <div class="card-header-v3">
+                <span class="header-icon"><i class="bi bi-sliders2"></i> 快捷配置</span>
+                <a href="/configure" class="btn btn-v3-outline btn-v3" style="font-size:.72rem;padding:4px 10px">全部</a>
+            </div>
+            <div class="card-body" style="padding:0">
+                {% if configs %}
+                {% for c in configs[:5] %}
+                {% set _sub = c.oracle_subtype if c.db_type == 'oracle' else (c.dameng_subtype if c.db_type == 'dameng' else (c.kingbase_subtype if c.db_type == 'kingbase' else (c.mysql_subtype if c.db_type == 'mysql' else (c.opengauss_subtype if c.db_type == 'opengauss' else (c.oceanbase_subtype if c.db_type == 'oceanbase' else (c.tidb_subtype if c.db_type == 'tidb' else (c.mongodb_subtype if c.db_type == 'mongodb' else ''))))))) %}
+                <div class="config-card" style="border:none;border-bottom:1px solid var(--slate-100);border-radius:0">
+                    <div class="config-card-header">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                            <strong style="font-size:.82rem">{{ c.name }}</strong>
+                            {% if c.db_type == 'mysql' %}
+                            <span class="mysql-badge">MySQL</span>
+                            {% elif c.db_type == 'oracle' %}
+                            <span class="oracle-badge">Oracle {% if (_sub or 'adg') == 'rac' %}RAC{% else %}ADG{% endif %}</span>
+                            {% elif c.db_type == 'postgresql' %}
+                            <span class="badge badge-info">PG</span>
+                            {% elif c.db_type == 'redis' %}
+                            <span class="badge badge-danger">Redis</span>
+                            {% elif c.db_type == 'dameng' %}
+                            <span class="dm-badge">达梦 {% if (_sub or 'standby') == 'dsc' %}DSC{% endif %}</span>
+                            {% elif c.db_type == 'kingbase' %}
+                            <span class="kb-badge">金仓 {% if (_sub or 'standby') == 'kdc' %}KDC{% endif %}</span>
+                            {% elif c.db_type == 'opengauss' %}
+                            <span class="og-badge">openGauss {% if (_sub or 'standby') == 'cluster' %}集群{% endif %}</span>
+                            {% elif c.db_type == 'oceanbase' %}
+                            <span class="ob-badge">OceanBase {% if (_sub or 'standby') == 'cluster' %}集群{% endif %}</span>
+                            {% elif c.db_type == 'tidb' %}
+                            <span class="tidb-badge">TiDB {% if (_sub or 'standby') == 'cluster' %}调度{% endif %}</span>
+                            {% elif c.db_type == 'mongodb' %}
+                            <span class="mongo-badge">MongoDB {% if (_sub or 'replica') == 'cluster' %}分片{% else %}副本{% endif %}</span>
+                            {% elif c.db_type == 'highgo' %}
+                            <span class="hg-badge">瀚高</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="config-card-body">
+                        {% if c.db_type == 'mysql' %}
+                        {{ c.master_host }}:{{ c.master_port }} → {{ c.slave_host }}:{{ c.slave_port }}
+                        {% elif c.db_type == 'oracle' and (_sub or 'adg') == 'rac' %}
+                        {{ c.rac_node1_host }} ⇄ {{ c.rac_node2_host }}
+                        {% elif c.db_type == 'oracle' %}
+                        {{ c.oracle_primary_host }}:{{ c.oracle_primary_port }}/{{ c.oracle_primary_sid }} → {{ c.oracle_standby_host }}:{{ c.oracle_standby_port }}
+                        {% elif c.db_type == 'postgresql' %}
+                        {{ c.pg_primary_host }}:{{ c.pg_primary_port }} → {{ c.pg_standby_host }}:{{ c.pg_standby_port }}
+                        {% elif c.db_type == 'redis' %}
+                        {{ c.redis_master_host or '-' }}:{{ c.redis_master_port }} → {{ c.redis_slave_host or '-' }}:{{ c.redis_slave_port }}
+                        {% elif c.db_type == 'dameng' %}
+                        {{ c.dm_primary_host or c.master_host }}:{{ c.dm_primary_port or c.master_port }} → {{ c.dm_standby_host or c.slave_host }}:{{ c.dm_standby_port or c.slave_port }}
+                        {% elif c.db_type == 'kingbase' %}
+                        {{ c.kb_primary_host or c.master_host }}:{{ c.kb_primary_port or c.master_port }} → {{ c.kb_standby_host or c.slave_host }}:{{ c.kb_standby_port or c.slave_port }}
+                        {% elif c.db_type == 'opengauss' %}
+                        {{ c.og_primary_host }}:{{ c.og_primary_port }} → {{ c.og_standby_host }}:{{ c.og_standby_port }}
+                        {% elif c.db_type == 'oceanbase' %}
+                        {{ c.ob_primary_host }}:{{ c.ob_primary_port }} → {{ c.ob_standby_host }}:{{ c.ob_standby_port }}
+                        {% elif c.db_type == 'tidb' %}
+                        {{ c.tidb_primary_host }}:{{ c.tidb_primary_port }} → {{ c.tidb_standby_host }}:{{ c.tidb_standby_port }}
+                        {% elif c.db_type == 'mongodb' %}
+                        {{ c.mongo_primary_host }}:{{ c.mongo_primary_port }} → {{ c.mongo_standby_host }}:{{ c.mongo_standby_port }}
+                        {% elif c.db_type == 'highgo' %}
+                        {{ c.hg_primary_host }}:{{ c.hg_primary_port }} → {{ c.hg_standby_host }}:{{ c.hg_standby_port }}
+                        {% endif %}
+                    </div>
+                    <div class="config-card-actions">
+                        <a href="/switchover?config_id={{ c.id }}" class="btn btn-v3-primary btn-v3" style="font-size:.72rem;padding:3px 12px;flex:1"><i class="bi bi-play-fill"></i> 执行演练</a>
+                        <a href="/configure" class="btn btn-v3-outline btn-v3" style="font-size:.72rem;padding:3px 10px"><i class="bi bi-pencil"></i></a>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty-state" style="padding:24px">
+                    <i class="bi bi-sliders2" style="font-size:2rem"></i>
+                    <p>暂无配置，请先创建</p>
+                    <a href="/configure" class="btn btn-v3-primary btn-v3" style="font-size:.76rem;padding:6px 16px;margin-top:8px"><i class="bi bi-plus-lg"></i> 新增配置</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- AI 助手卡片 -->
+        <div class="card">
+            <div class="card-header-v3">
+                <span class="header-icon"><i class="bi bi-robot"></i> AI 助手</span>
+                {% if active_ai %}
+                <span class="badge badge-success"><span class="badge-dot"></span> 在线</span>
+                {% else %}
+                <span class="badge badge-slate">未配置</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if active_ai %}
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+                    <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--teal-500),var(--teal-600));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight:700;font-size:.86rem">{{ active_ai.name }}</div>
+                        <div class="text-xs" style="color:var(--slate-500)">{{ active_ai.provider }} · {{ active_ai.model_name }}</div>
+                    </div>
+                </div>
+                <p class="text-xs" style="color:var(--slate-500);margin-bottom:8px">支持自然语言查询数据库状态、执行切换演练。</p>
+                <div style="display:flex;gap:6px">
+                    <a href="/ai-assistant" class="btn btn-v3-primary btn-v3" style="font-size:.74rem;padding:5px 12px;flex:1"><i class="bi bi-chat-dots"></i> 打开对话</a>
+                    <a href="/ai-settings" class="btn btn-v3-outline btn-v3" style="font-size:.74rem;padding:5px 10px">设置</a>
+                </div>
+                {% else %}
+                <div class="empty-state" style="padding:16px">
+                    <i class="bi bi-robot" style="font-size:1.8rem"></i>
+                    <p style="font-size:.8rem">AI 助手未配置</p>
+                    <a href="/ai-settings" class="btn btn-v3-primary btn-v3" style="font-size:.74rem;padding:5px 14px;margin-top:6px">配置大模型</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+{% endblock %}

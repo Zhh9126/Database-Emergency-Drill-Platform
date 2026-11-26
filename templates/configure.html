@@ -1,0 +1,2078 @@
+{% extends "base.html" %}
+{% block title %}配置管理 - 应急演练平台{% endblock %}
+{% block page_title %}配置管理{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-3)">
+    <div class="db-type-tabs" id="configFilterTabs">
+        <button class="db-type-tab active" data-mode="dbtype" data-value="" onclick="filterConfig('')">全部</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="mysql" onclick="filterConfig('mysql')"><i class="bi bi-database-fill-gear me-1"></i>MySQL</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="oracle" onclick="filterConfig('oracle')"><i class="bi bi-database-fill-lock me-1"></i>Oracle</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="postgresql" onclick="filterConfig('postgresql')"><i class="bi bi-server me-1"></i>PostgreSQL</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="redis" onclick="filterConfig('redis')"><i class="bi bi-lightning-fill me-1"></i>Redis</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="dameng" onclick="filterConfig('dameng')"><i class="bi bi-diagram-3 me-1"></i>达梦</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="kingbase" onclick="filterConfig('kingbase')"><i class="bi bi-shield-lock me-1"></i>金仓</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="opengauss" onclick="filterConfig('opengauss')"><i class="bi bi-hdd-network me-1"></i>openGauss</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="oceanbase" onclick="filterConfig('oceanbase')"><i class="bi bi-cloud-arrow-up me-1"></i>OceanBase</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="tidb" onclick="filterConfig('tidb')"><i class="bi bi-distribute-vertical me-1"></i>TiDB</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="mongodb" onclick="filterConfig('mongodb')"><i class="bi bi-database me-1"></i>MongoDB</button>
+        <button class="db-type-tab" data-mode="dbtype" data-value="highgo" onclick="filterConfig('highgo')"><i class="bi bi-hdd-stack me-1"></i>瀚高</button>
+    </div>
+    <button class="btn btn-primary" onclick="openCreateModal()"><i class="bi bi-plus-lg"></i> 新增配置</button>
+</div>
+
+<!-- 集群切换模式分类（集群模式分组：复制型 vs 集群关停测试） -->
+<div class="card mb-3" style="background:#F8FAFC;border:1px dashed var(--slate-200)">
+    <div class="card-body" style="padding:var(--space-3) var(--space-4);display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap">
+        <span style="font-weight:600;color:var(--slate-700)"><i class="bi bi-grid-3x3-gap-fill me-1"></i>集群切换模式：</span>
+        <div class="db-type-tabs" id="configClusterModeTabs">
+            <button class="db-type-tab active" data-mode="cluster" data-value="" onclick="filterConfig('')">全部模式</button>
+            <button class="db-type-tab" data-mode="cluster" data-value="replica" onclick="filterConfig('replica')" style="color:#059669"><i class="bi bi-arrow-left-right me-1"></i>复制型主备切换</button>
+            <button class="db-type-tab" data-mode="cluster" data-value="shutdown" onclick="filterConfig('shutdown')" style="color:#DC2626"><i class="bi bi-shield-fill-check me-1"></i>集群关停测试</button>
+        </div>
+        <small style="color:var(--slate-500);margin-left:auto">
+            <i class="bi bi-info-circle me-1"></i>MySQL MGR、Oracle RAC、达梦DSC、金仓KDC 等共享集群执行关停测试；其他主备型采用主从角色互换
+        </small>
+    </div>
+</div>
+
+<!-- ==================== 拓扑总览 ==================== -->
+<div class="card mb-3" style="box-shadow:var(--shadow-sm)">
+    <div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3);flex-wrap:wrap;gap:var(--space-2)">
+            <h6 class="mb-0" style="font-weight:700"><i class="bi bi-diagram-3-fill me-2" style="color:var(--teal-600)"></i>配置拓扑总览</h6>
+            <span class="text-xs text-muted"><i class="bi bi-mouse2 me-1"></i>点击节点查看参数 · 点击配置卡片下钻完整拓扑</span>
+        </div>
+        <div id="topoOverview" style="display:flex;flex-direction:column;gap:var(--space-3)"></div>
+        <div id="topoOverviewEmpty" class="empty-state" style="display:none;padding:var(--space-5)">
+            <i class="bi bi-diagram-3"></i>
+            <h6>暂无拓扑</h6>
+            <p>创建配置后，这里将自动生成拓扑关系图，点击可下钻查看配置参数</p>
+        </div>
+    </div>
+</div>
+
+<!-- 拓扑下钻 Modal -->
+<div class="modal-overlay" id="topoModal">
+    <div class="modal-panel" style="max-width:640px">
+        <div class="modal-header">
+            <h5 class="mb-0" id="topoModalTitle"><i class="bi bi-diagram-3 me-2"></i>拓扑详情</h5>
+            <button class="btn btn-ghost btn-sm" onclick="closeTopoModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="topoModalBody" style="max-height:70vh;overflow-y:auto"></div>
+    </div>
+</div>
+
+<div class="card" style="box-shadow:var(--shadow-sm)">
+    <div class="card-body" style="padding:0">
+    {% if configs %}
+    <div class="table-wrap"><table class="table-v3" id="configsTable">
+        <thead><tr>
+            <th>类型</th><th>集群模式</th><th>名称</th><th>主库</th><th>从/备库</th><th>切换参数</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+        {% for c in configs %}
+        {% if c.db_type == 'oracle' %}{% set _sub = c.oracle_subtype %}
+        {% elif c.db_type == 'dameng' %}{% set _sub = c.dameng_subtype %}
+        {% elif c.db_type == 'kingbase' %}{% set _sub = c.kingbase_subtype %}
+        {% elif c.db_type == 'mysql' %}{% set _sub = c.mysql_subtype %}
+        {% elif c.db_type == 'middleware' %}{% set _sub = c.mw_subtype %}
+        {% else %}{% set _sub = '' %}{% endif %}
+        {% set _shutdown_subs = ['rac','dsc','kdc','mgr_multi','cluster'] %}
+        {% set _ct = 'shutdown' if _sub in _shutdown_subs else 'replica' %}
+        <tr data-db-type="{{ c.db_type }}" data-subtype="{{ _sub or '' }}" data-cluster-type="{{ _ct }}">
+                         <td>
+                             {% set dt = c.db_type %}
+                             {% if dt == 'oracle' %}
+                            <span class="oracle-badge">Oracle {% if (_sub or 'adg') == 'rac' %}RAC{% else %}ADG{% endif %}</span>
+                            {% elif dt == 'postgresql' %}
+                            <span class="badge" style="background:#DBEAFE;color:#1D4ED8">PostgreSQL 流复制</span>
+                            {% elif dt == 'redis' %}
+                            <span class="badge" style="background:#FEE2E2;color:#DC2626">Redis 主从</span>
+                            {% elif dt == 'dameng' %}
+                            <span class="dm-badge">达梦 {% if (_sub or 'standby') == 'dsc' %}DSC{% else %}主备{% endif %}</span>
+                            {% elif dt == 'kingbase' %}
+                            <span class="kb-badge">金仓 {% if (_sub or 'standby') == 'kdc' %}KDC{% else %}主备{% endif %}</span>
+                            {% elif dt == 'opengauss' %}
+                            <span class="badge" style="background:#EDE9FE;color:#6D28D8">openGauss {% if (_sub or 'standby') == 'cluster' %}集群{% else %}主备{% endif %}</span>
+                            {% elif dt == 'oceanbase' %}
+                            <span class="badge" style="background:#FEF3C7;color:#B45309">OceanBase {% if (_sub or 'standby') == 'cluster' %}集群{% else %}主备{% endif %}</span>
+                            {% elif dt == 'tidb' %}
+                            <span class="badge" style="background:#FCE7F3;color:#BE185D">TiDB {% if (_sub or 'standby') == 'cluster' %}调度{% else %}主备{% endif %}</span>
+                            {% elif dt == 'mongodb' %}
+                            <span class="badge" style="background:#D1FAE5;color:#047857">MongoDB {% if (_sub or 'replica') == 'cluster' %}分片{% else %}副本集{% endif %}</span>
+                            {% elif dt == 'highgo' %}
+                            <span class="badge" style="background:#E0F2FE;color:#0369A1">瀚高 主备</span>
+                            {% elif dt == 'middleware' %}
+                            <span class="badge" style="background:#F3F4F6;color:#374151;border:1px solid #D1D5DB">{{ c.middleware_type|upper if c.middleware_type else 'MW' }} {% if (c.mw_subtype or 'active_standby') == 'cluster' %}集群{% else %}主备{% endif %}</span>
+                            {% elif dt == 'mysql' %}
+                                {% if (_sub or 'replica') == 'mgr_single' %}
+                            <span class="mysql-badge">MySQL MGR 单主</span>
+                                {% elif (_sub or 'replica') == 'mgr_multi' %}
+                            <span class="mysql-badge">MySQL MGR 多主</span>
+                                {% else %}
+                            <span class="mysql-badge">MySQL 主从</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="mysql-badge">MySQL 主从</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if _sub in _shutdown_subs %}
+                            <span class="badge" style="background:#FEF2F2;color:#DC2626;font-size:.65rem"><i class="bi bi-shield-fill-check me-1"></i>集群型主备切换</span>
+                            {% else %}
+                            <span class="badge" style="background:#ECFDF5;color:#059669;font-size:.65rem"><i class="bi bi-arrow-left-right me-1"></i>复制型主备切换</span>
+                            {% endif %}
+                        </td>
+            <td><strong>{{ c.name }}</strong><br><small class="text-muted">{{ c.description or '' }}</small></td>
+            <td>
+                {% if c.db_type == 'oracle' %}
+                    {% if (c.oracle_subtype or 'adg') == 'rac' %}
+                <code>{{ c.rac_node1_host }}/{{ c.rac_node1_sid }}</code>
+                    {% else %}
+                <code>{{ c.oracle_primary_host }}:{{ c.oracle_primary_port }}/{{ c.oracle_primary_sid }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'postgresql' %}
+                <code>{{ c.pg_primary_host }}:{{ c.pg_primary_port }}</code>
+                {% elif c.db_type == 'redis' %}
+                <code>{{ c.redis_master_host or '-' }}:{{ c.redis_master_port }}</code>
+                {% elif c.db_type == 'kingbase' %}
+                    {% if (c.kingbase_subtype or 'standby') == 'kdc' %}
+                <code>{{ c.kb_kdc_node1_host }}/{{ c.kb_kdc_service_name }}</code>
+                    {% else %}
+                <code>{{ c.kb_primary_host }}:{{ c.kb_primary_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'dameng' %}
+                    {% if (c.dameng_subtype or 'standby') == 'dsc' %}
+                <code>{{ c.dm_dsc_node1_host }}/{{ c.dm_dsc_service_name }}</code>
+                    {% else %}
+                <code>{{ c.dm_primary_host }}:{{ c.dm_primary_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'opengauss' %}
+                    {% if (c.opengauss_subtype or 'standby') == 'cluster' %}
+                <code>{{ c.og_cluster_node1_host }}:{{ c.og_cluster_node1_port }}</code>
+                    {% else %}
+                <code>{{ c.og_primary_host }}:{{ c.og_primary_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'oceanbase' %}
+                    {% if (c.oceanbase_subtype or 'standby') == 'cluster' %}
+                <code>{{ c.ob_cluster_node1_host }}:{{ c.ob_cluster_node1_port }}</code>
+                    {% else %}
+                <code>{{ c.ob_primary_host }}:{{ c.ob_primary_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'tidb' %}
+                    {% if (c.tidb_subtype or 'standby') == 'cluster' %}
+                <code>{{ c.tidb_cluster_node1_host }}:{{ c.tidb_cluster_node1_port }}</code>
+                    {% else %}
+                <code>{{ c.tidb_primary_host }}:{{ c.tidb_primary_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'mongodb' %}
+                    {% if (c.mongodb_subtype or 'replica') == 'cluster' %}
+                <code>{{ c.mongo_cluster_node1_host }}:{{ c.mongo_cluster_node1_port }}</code>
+                    {% else %}
+                <code>{{ c.mongo_primary_host }}:{{ c.mongo_primary_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'highgo' %}
+                <code>{{ c.hg_primary_host }}:{{ c.hg_primary_port }}</code>
+                {% elif c.db_type == 'middleware' %}
+                    {% if (c.mw_subtype or 'active_standby') == 'cluster' %}
+                <code>{{ c.mw_cluster_node1_host }}:{{ c.mw_cluster_node1_port }}</code>
+                    {% else %}
+                <code>{{ c.mw_primary_host }}:{{ c.mw_primary_port }}</code>
+                    {% endif %}
+                {% else %}
+                <code>{{ c.master_host }}:{{ c.master_port }}</code>
+                {% endif %}
+            </td>
+            <td>
+                {% if c.db_type == 'oracle' %}
+                    {% if (c.oracle_subtype or 'adg') == 'rac' %}
+                <code>{{ c.rac_node2_host }}/{{ c.rac_node2_sid }}</code>
+                    {% else %}
+                <code>{{ c.oracle_standby_host }}:{{ c.oracle_standby_port }}/{{ c.oracle_standby_sid }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'postgresql' %}
+                <code>{{ c.pg_standby_host }}:{{ c.pg_standby_port }}</code>
+                {% elif c.db_type == 'redis' %}
+                <code>{{ c.redis_master_host }}:{{ c.redis_master_port }} ⇄ {{ c.redis_slave_host }}:{{ c.redis_slave_port }}</code>
+                {% elif c.db_type == 'kingbase' %}
+                    {% if (c.kingbase_subtype or 'standby') == 'kdc' %}
+                <code>{{ c.kb_kdc_node2_host }}/{{ c.kb_kdc_service_name }}</code>
+                    {% else %}
+                <code>{{ c.kb_standby_host }}:{{ c.kb_standby_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'dameng' %}
+                    {% if (c.dameng_subtype or 'standby') == 'dsc' %}
+                <code>{{ c.dm_dsc_node2_host }}/{{ c.dm_dsc_service_name }}</code>
+                    {% else %}
+                <code>{{ c.dm_standby_host }}:{{ c.dm_standby_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'opengauss' %}
+                    {% if (c.opengauss_subtype or 'standby') == 'cluster' %}
+                <code>{{ c.og_cluster_node2_host }}:{{ c.og_cluster_node2_port }}</code>
+                    {% else %}
+                <code>{{ c.og_standby_host }}:{{ c.og_standby_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'oceanbase' %}
+                    {% if (c.oceanbase_subtype or 'standby') == 'cluster' %}
+                <code>{{ c.ob_cluster_node2_host }}:{{ c.ob_cluster_node2_port }}</code>
+                    {% else %}
+                <code>{{ c.ob_standby_host }}:{{ c.ob_standby_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'tidb' %}
+                    {% if (c.tidb_subtype or 'standby') == 'cluster' %}
+                <code>{{ c.tidb_cluster_node2_host }}:{{ c.tidb_cluster_node2_port }}</code>
+                    {% else %}
+                <code>{{ c.tidb_standby_host }}:{{ c.tidb_standby_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'mongodb' %}
+                    {% if (c.mongodb_subtype or 'replica') == 'cluster' %}
+                <code>{{ c.mongo_cluster_node2_host }}:{{ c.mongo_cluster_node2_port }}</code>
+                    {% else %}
+                <code>{{ c.mongo_standby_host }}:{{ c.mongo_standby_port }}</code>
+                    {% endif %}
+                {% elif c.db_type == 'highgo' %}
+                <code>{{ c.hg_standby_host }}:{{ c.hg_standby_port or '-' }}</code>
+                {% elif c.db_type == 'middleware' %}
+                    {% if (c.mw_subtype or 'active_standby') == 'cluster' %}
+                <code>{{ c.mw_cluster_node2_host }}:{{ c.mw_cluster_node2_port }}</code>
+                    {% else %}
+                <code>{{ c.mw_secondary_host }}:{{ c.mw_secondary_port }}</code>
+                    {% endif %}
+                {% else %}
+                <code>{{ c.slave_host }}:{{ c.slave_port }}</code>
+                {% endif %}
+            </td>
+            <td>
+                <span class="text-xs">延迟: {{ c.max_delay }}s</span>
+                {% if c.force_switchover %}<span class="badge badge-warning">强制</span>{% endif %}
+                {% if c.auto_rollback %}<span class="badge badge-teal">回滚</span>{% endif %}
+            </td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <button class="btn btn-outline btn-sm" onclick="showCfgTopology({{ c.id }})" title="查看拓扑"><i class="bi bi-diagram-3"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="editConfig({{ c.id }})"><i class="bi bi-pencil"></i></button>
+                    <a href="/switchover?config_id={{ c.id }}" class="btn btn-outline-teal btn-sm">切换</a>
+                    {% if c.db_type == 'oracle' %}
+                    <button class="btn btn-outline btn-sm" onclick="checkOracleStatus({{ c.id }})" title="检查状态"><i class="bi bi-clipboard-pulse"></i></button>
+                    {% elif c.db_type == 'postgresql' %}
+                    <button class="btn btn-outline btn-sm" onclick="checkPgStatus({{ c.id }})" title="检查状态"><i class="bi bi-clipboard-pulse"></i></button>
+                    {% elif c.db_type == 'redis' %}
+                    <button class="btn btn-outline btn-sm" onclick="checkRedisStatus({{ c.id }})" title="检查状态"><i class="bi bi-clipboard-pulse"></i></button>
+                    {% else %}
+                    <button class="btn btn-outline btn-sm" onclick="checkReplStatus({{ c.id }})" title="检查复制状态"><i class="bi bi-clipboard-pulse"></i></button>
+                    {% endif %}
+                    <button class="btn btn-outline-teal btn-sm" onclick="repairReplication('{{ c.db_type }}', {{ c.id }})" title="一键修复复制（重建通道/补账号/GTID对齐）"><i class="bi bi-tools"></i></button>
+                    <button class="btn btn-ghost btn-sm" onclick="deleteConfig({{ c.id }})" title="删除"><i class="bi bi-trash"></i></button>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-sliders2"></i>
+        <h5>暂无配置</h5>
+        <p>创建切换配置以开始演练</p>
+        <button class="btn btn-primary mt-2" onclick="openCreateModal()">创建第一个配置</button>
+    </div>
+    {% endif %}
+    </div>
+</div>
+
+<!-- ==================== Modal: 新增/编辑 ==================== -->
+<div class="modal-overlay" id="configModal">
+    <div class="modal-panel" style="max-width:800px">
+        <div class="modal-header">
+            <h5 id="modalTitle"><i class="bi bi-sliders2 me-2"></i>新增配置</h5>
+            <button class="btn btn-ghost btn-sm" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="configForm">
+                <input type="hidden" id="cfgId">
+                <!-- 第一步：选择集群切换模式 -->
+                <div class="cluster-mode-toggle mb-3" id="clusterModeToggle">
+                    <span class="cluster-mode-label">集群切换模式 *</span>
+                    <button type="button" class="cluster-mode-btn active" data-mode="replica" onclick="switchClusterMode('replica')">
+                        <i class="bi bi-arrow-left-right"></i> 复制型主备切换
+                        <small class="cm-hint">基于数据复制的主从角色互换</small>
+                    </button>
+                    <button type="button" class="cluster-mode-btn" data-mode="shutdown" onclick="switchClusterMode('shutdown')">
+                        <i class="bi bi-shield-fill-check"></i> 集群关停测试
+                        <small class="cm-hint">多节点共享集群的 HA 验证</small>
+                    </button>
+                </div>
+                <!-- 第二步：选择数据库类型（按模式分组显示） -->
+                <div class="db-type-section-label" id="replicaSectionLabel">
+                    <i class="bi bi-arrow-left-right"></i> 复制型 —— 主从/主备复制型
+                </div>
+                <div class="db-type-tabs mb-3" id="replicaTypeTabs">
+                    <button type="button" class="db-type-tab active" data-type="mysql" data-subtype="replica" onclick="switchDbType('mysql','replica')">
+                        <i class="bi bi-database-fill-gear"></i> MySQL 主从
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="mysql" data-subtype="mgr_single" onclick="switchDbType('mysql','mgr_single')">
+                        <i class="bi bi-database-fill-gear"></i> MySQL MGR 单主
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="oracle" data-subtype="adg" onclick="switchDbType('oracle','adg')">
+                        <i class="bi bi-database-fill-lock"></i> Oracle ADG
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="postgresql" onclick="switchDbType('postgresql')">
+                        <i class="bi bi-server"></i> PG 流复制
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="redis" onclick="switchDbType('redis')">
+                        <i class="bi bi-lightning-fill"></i> Redis 主从
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="dameng" data-subtype="standby" onclick="switchDbType('dameng','standby')">
+                        <i class="bi bi-diagram-3"></i> 达梦 主备
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="kingbase" data-subtype="standby" onclick="switchDbType('kingbase','standby')">
+                        <i class="bi bi-shield-lock"></i> 金仓 主备
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="opengauss" data-subtype="standby" onclick="switchDbType('opengauss','standby')">
+                        <i class="bi bi-hdd-network"></i> openGauss 主备
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="oceanbase" data-subtype="standby" onclick="switchDbType('oceanbase','standby')">
+                        <i class="bi bi-cloud-arrow-up"></i> OceanBase 主备
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="tidb" data-subtype="standby" onclick="switchDbType('tidb','standby')">
+                        <i class="bi bi-distribute-vertical"></i> TiDB 主备
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="mongodb" data-subtype="replica" onclick="switchDbType('mongodb','replica')">
+                        <i class="bi bi-database"></i> MongoDB 副本集
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="highgo" data-subtype="standby" onclick="switchDbType('highgo','standby')">
+                        <i class="bi bi-hdd-stack"></i> 瀚高 主备
+                    </button>
+                </div>
+                <!-- 中间件区 -->
+                <div class="db-type-section-label" style="margin-top:var(--space-3)">
+                    <i class="bi bi-hdd-rack-fill"></i> 中间件及应用服务 —— 高可用切换演练
+                </div>
+                <div class="db-type-tabs mb-3" id="middlewarePrimaryTabs">
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="active_standby" data-mw-type="nginx" onclick="switchDbType('middleware','active_standby','nginx')">
+                        <i class="bi bi-cloud-arrow-through-fill"></i> Nginx 主备
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="active_standby" data-mw-type="tomcat" onclick="switchDbType('middleware','active_standby','tomcat')">
+                        <i class="bi bi-app-indicator"></i> Tomcat 主备
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="active_standby" data-mw-type="kafka" onclick="switchDbType('middleware','active_standby','kafka')">
+                        <i class="bi bi-diagram-2-fill"></i> Kafka Controller
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="active_standby" data-mw-type="zookeeper" onclick="switchDbType('middleware','active_standby','zookeeper')">
+                        <i class="bi bi-diagram-3-fill"></i> ZK Leader
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="active_standby" data-mw-type="elasticsearch" onclick="switchDbType('middleware','active_standby','elasticsearch')">
+                        <i class="bi bi-search"></i> ES Master
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="active_standby" data-mw-type="rabbitmq" onclick="switchDbType('middleware','active_standby','rabbitmq')">
+                        <i class="bi bi-envelope-paper-fill"></i> RabbitMQ 主备
+                    </button>
+                </div>
+                <div class="db-type-tabs mb-3" id="middlewareClusterTabs">
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="cluster" data-mw-type="nginx" onclick="switchDbType('middleware','cluster','nginx')">
+                        <i class="bi bi-cloud-arrow-through-fill"></i> Nginx 集群
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="cluster" data-mw-type="tomcat" onclick="switchDbType('middleware','cluster','tomcat')">
+                        <i class="bi bi-app-indicator"></i> Tomcat 集群
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="cluster" data-mw-type="kafka" onclick="switchDbType('middleware','cluster','kafka')">
+                        <i class="bi bi-diagram-2-fill"></i> Kafka Broker
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="cluster" data-mw-type="zookeeper" onclick="switchDbType('middleware','cluster','zookeeper')">
+                        <i class="bi bi-diagram-3-fill"></i> ZK Quorum
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="cluster" data-mw-type="elasticsearch" onclick="switchDbType('middleware','cluster','elasticsearch')">
+                        <i class="bi bi-search"></i> ES 集群
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="middleware" data-subtype="cluster" data-mw-type="rabbitmq" onclick="switchDbType('middleware','cluster','rabbitmq')">
+                        <i class="bi bi-envelope-paper-fill"></i> RabbitMQ 集群
+                    </button>
+                </div>
+                <div class="db-type-section-label" id="shutdownSectionLabel" style="display:none">
+                    <i class="bi bi-shield-fill-check"></i> 集群型 —— 多节点共享集群 HA 演练
+                </div>
+                <div class="db-type-tabs mb-3" id="shutdownTypeTabs" style="display:none">
+                    <button type="button" class="db-type-tab active" data-type="mysql" data-subtype="mgr_multi" onclick="switchDbType('mysql','mgr_multi')">
+                        <i class="bi bi-database-fill-gear"></i> MySQL MGR 多主
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="oracle" data-subtype="rac" onclick="switchDbType('oracle','rac')">
+                        <i class="bi bi-diagram-3-fill"></i> Oracle RAC
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="dameng" data-subtype="dsc" onclick="switchDbType('dameng','dsc')">
+                        <i class="bi bi-diagram-3-fill"></i> 达梦 DSC
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="kingbase" data-subtype="kdc" onclick="switchDbType('kingbase','kdc')">
+                        <i class="bi bi-shield-fill-check"></i> 金仓 KDC
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="opengauss" data-subtype="cluster" onclick="switchDbType('opengauss','cluster')">
+                        <i class="bi bi-hdd-network-fill"></i> openGauss 集群
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="oceanbase" data-subtype="cluster" onclick="switchDbType('oceanbase','cluster')">
+                        <i class="bi bi-cloud-arrow-up-fill"></i> OceanBase 集群
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="tidb" data-subtype="cluster" onclick="switchDbType('tidb','cluster')">
+                        <i class="bi bi-distribute-horizontal"></i> TiDB 调度
+                    </button>
+                    <button type="button" class="db-type-tab" data-type="mongodb" data-subtype="cluster" onclick="switchDbType('mongodb','cluster')">
+                        <i class="bi bi-diagram-2-fill"></i> MongoDB 分片
+                    </button>
+                </div>
+                <input type="hidden" name="db_type" id="formDbType" value="mysql">
+                <input type="hidden" name="mysql_subtype" id="mysqlSubtype" value="replica">
+
+                <!-- 通用字段 -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                    <div class="form-group">
+                        <label class="form-label">配置名称 *</label>
+                        <input class="form-control" name="name" id="cfgName" required placeholder="如: 生产环境MySQL主从">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">描述</label>
+                        <input class="form-control" name="description" id="cfgDesc" placeholder="可选">
+                    </div>
+                </div>
+
+                <!-- ===== MySQL 字段 ===== -->
+                <div id="mysqlFields">
+                    <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-4);align-items:center">
+                        <span style="color:var(--slate-500);font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em">MySQL 模式</span>
+                        <label style="display:flex;align-items:center;gap:var(--space-1);cursor:pointer;font-size:.8rem;font-weight:600;color:var(--slate-700)">
+                            <input type="radio" name="mysql_subtype_radio" value="replica" checked onchange="switchMySqlSub('replica')"> 普通主从
+                        </label>
+                        <label style="display:flex;align-items:center;gap:var(--space-1);cursor:pointer;font-size:.8rem;font-weight:600;color:var(--teal-700)">
+                            <input type="radio" name="mysql_subtype_radio" value="mgr_single" onchange="switchMySqlSub('mgr_single')"> MGR 单主
+                        </label>
+                        <label style="display:flex;align-items:center;gap:var(--space-1);cursor:pointer;font-size:.8rem;font-weight:600;color:#DC2626">
+                            <input type="radio" name="mysql_subtype_radio" value="mgr_multi" onchange="switchMySqlSub('mgr_multi')"> MGR 多主
+                        </label>
+                    </div>
+                    <h6 style="color:var(--slate-500);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)">MySQL 连接信息</h6>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                        <div class="form-group">
+                            <label class="form-label">用户</label>
+                            <input class="form-control" name="mysql_user" id="mysqlUser" value="root">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">密码</label>
+                            <input class="form-control" type="password" name="mysql_pass" id="mysqlPass">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+                        <div class="card" style="background:var(--teal-50);border:1px solid var(--teal-200)">
+                            <div class="card-body">
+                                <h6 style="color:var(--teal-800);margin-bottom:var(--space-3)" id="mysqlLeftTitle">主库 (Master)</h6>
+                                <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="master_host" id="masterHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="master_port" id="masterPort" value="3306" placeholder="端口">
+                                </div>
+                                <button type="button" class="btn btn-outline-teal btn-sm mt-2" onclick="testConn('mysql','master')">测试连接</button>
+                            </div>
+                        </div>
+                        <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                            <div class="card-body">
+                                <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)" id="mysqlRightTitle">从库 (Slave)</h6>
+                                <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="slave_host" id="slaveHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="slave_port" id="slavePort" value="3306" placeholder="端口">
+                                </div>
+                                <div id="mysqlSlaveAccount" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-top:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="mysql_slave_user" id="mysqlSlaveUser" placeholder="从库账号（留空复用主库）">
+                                    <input class="form-control form-control-sm" type="password" name="mysql_slave_pass" id="mysqlSlavePass" placeholder="从库密码（留空复用主库）">
+                                </div>
+                                <div id="mysqlReplAccount" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-top:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="mysql_repl_user" id="mysqlReplUser" placeholder="复制账号（默认 repl）">
+                                    <input class="form-control form-control-sm" type="password" name="mysql_repl_pass" id="mysqlReplPass" placeholder="复制账号密码（修复时使用）">
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('mysql','slave')">测试连接</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Oracle 字段 ===== -->
+                <div id="oracleFields" style="display:none">
+                    <input type="hidden" name="oracle_subtype" id="oraSubtype" value="adg">
+                    <div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-4);align-items:center">
+                        <span style="color:#7C3AED;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Oracle 类型</span>
+                        <label style="display:flex;align-items:center;gap:var(--space-1);cursor:pointer;font-size:.8rem;font-weight:600;color:#7C3AED">
+                            <input type="radio" name="ora_subtype_radio" value="adg" checked onchange="switchOracleSub('adg')"> ADG (DataGuard)
+                        </label>
+                        <label style="display:flex;align-items:center;gap:var(--space-1);cursor:pointer;font-size:.8rem;font-weight:600;color:#9333EA">
+                            <input type="radio" name="ora_subtype_radio" value="rac" onchange="switchOracleSub('rac')"> RAC
+                        </label>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-4)">
+                        <div class="form-group">
+                            <label class="form-label">用户 *</label>
+                            <input class="form-control" name="oracle_user" id="oraUser" value="sys" placeholder="sys">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">密码 *</label>
+                            <input class="form-control" type="password" name="oracle_pass" id="oraPass" placeholder="密码">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">连接模式</label>
+                            <select class="form-select" name="oracle_connect_mode" id="oraMode">
+                                <option value="SYSDBA">SYSDBA</option>
+                                <option value="NORMAL">NORMAL</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="oraAdgSub" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+                        <div class="card" style="background:#F5F3FF;border:1px solid #DDD6FE">
+                            <div class="card-body">
+                                <h6 style="color:#7C3AED;margin-bottom:var(--space-3)">主库 (Primary)</h6>
+                                <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="oracle_primary_host" id="oraPrimHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="oracle_primary_port" id="oraPrimPort" value="1521" placeholder="端口">
+                                </div>
+                                <input class="form-control form-control-sm" name="oracle_primary_sid" id="oraPrimSid" placeholder="SID/Service Name">
+                                <button type="button" class="btn btn-outline-teal btn-sm mt-2" onclick="testConn('oracle','primary')">测试连接</button>
+                            </div>
+                        </div>
+                        <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                            <div class="card-body">
+                                <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">备库 (Standby)</h6>
+                                <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="oracle_standby_host" id="oraStbyHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="oracle_standby_port" id="oraStbyPort" value="1521" placeholder="端口">
+                                </div>
+                                <input class="form-control form-control-sm" name="oracle_standby_sid" id="oraStbySid" placeholder="SID/Service Name">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-top:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="oracle_standby_user" id="oraStbyUser" placeholder="备库账号（留空复用主库）">
+                                    <input class="form-control form-control-sm" type="password" name="oracle_standby_pass" id="oraStbyPass" placeholder="备库密码（留空复用主库）">
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('oracle','standby')">测试连接</button>
+                            </div>
+                        </div>
+                    </div>
+
+                <!-- Oracle RAC 节点（内嵌） -->
+                <div id="oraRacSub" style="display:none">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-top:var(--space-3)">
+                        <div class="card" style="background:#F3E8FF;border:1px solid #D8B4FE">
+                            <div class="card-body">
+                                <h6 style="color:#9333EA;margin-bottom:var(--space-3)">节点 1</h6>
+                                <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="rac_node1_host" id="racNode1Host" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="rac_node1_sid" id="racNode1Sid" placeholder="SID">
+                                </div>
+                                <button type="button" class="btn btn-outline-teal btn-sm mt-2" onclick="testConn('rac','node1')">测试连接</button>
+                            </div>
+                        </div>
+                        <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                            <div class="card-body">
+                                <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">节点 2</h6>
+                                <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="rac_node2_host" id="racNode2Host" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="rac_node2_sid" id="racNode2Sid" placeholder="SID">
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="rac_node2_user" id="racNode2User" placeholder="节点2账号（留空复用节点1）">
+                                    <input class="form-control form-control-sm" type="password" name="rac_node2_pass" id="racNode2Pass" placeholder="节点2密码（留空复用节点1）">
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('rac','node2')">测试连接</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top:var(--space-3)">
+                        <label class="form-label">RAC 服务名 *</label>
+                        <input class="form-control" name="rac_service_name" id="racSvcName" placeholder="app_svc" style="max-width:300px">
+                    </div>
+                </div>
+                </div>
+
+                <!-- ===== PostgreSQL 字段 ===== -->
+                <div id="pgFields" style="display:none">
+                    <h6 style="color:#1D4ED8;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)">PostgreSQL 连接信息</h6>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                        <div class="form-group">
+                            <label class="form-label">用户</label>
+                            <input class="form-control" name="pg_user" id="pgUser" value="postgres">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">密码</label>
+                            <input class="form-control" type="password" name="pg_pass" id="pgPass">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+                        <div class="card" style="background:#DBEAFE;border:1px solid #BFDBFE">
+                            <div class="card-body">
+                                <h6 style="color:#1D4ED8;margin-bottom:var(--space-3)">主库 (Primary)</h6>
+                                <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="pg_primary_host" id="pgPrimHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="pg_primary_port" id="pgPrimPort" value="5432" placeholder="端口">
+                                </div>
+                                <button type="button" class="btn btn-outline-teal btn-sm mt-2" onclick="testConn('pg','primary')">测试连接</button>
+                            </div>
+                        </div>
+                        <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                            <div class="card-body">
+                                <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">备库 (Standby)</h6>
+                                <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="pg_standby_host" id="pgStbyHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="pg_standby_port" id="pgStbyPort" value="5432" placeholder="端口">
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-top:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="pg_standby_user" id="pgStbyUser" placeholder="备库账号（留空复用主库）">
+                                    <input class="form-control form-control-sm" type="password" name="pg_standby_pass" id="pgStbyPass" placeholder="备库密码（留空复用主库）">
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('pg','standby')">测试连接</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Redis 主从配置 ===== -->
+                <div id="redisFields" style="display:none">
+                    <h6 style="color:#DC2626;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)">Redis 主从配置</h6>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                        <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                            <div class="card-body">
+                                <h6 style="color:#DC2626;margin-bottom:var(--space-3)">主节点 (Master)</h6>
+                                <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="redis_master_host" id="redisMasterHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="redis_master_port" id="redisMasterPort" value="6379" placeholder="端口">
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="redis_master_user" id="redisMasterUser" placeholder="用户名（可选）">
+                                    <input class="form-control form-control-sm" type="password" name="redis_master_pass" id="redisMasterPass" placeholder="密码（可选）">
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="testConn('redis','master')">测试连接</button>
+                            </div>
+                        </div>
+                        <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                            <div class="card-body">
+                                <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">从节点 (Slave)</h6>
+                                <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="redis_slave_host" id="redisSlaveHost" placeholder="主机地址">
+                                    <input class="form-control form-control-sm" name="redis_slave_port" id="redisSlavePort" value="6379" placeholder="端口">
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                    <input class="form-control form-control-sm" name="redis_slave_user" id="redisSlaveUser" placeholder="用户名（留空复用主）">
+                                    <input class="form-control form-control-sm" type="password" name="redis_slave_pass" id="redisSlavePass" placeholder="密码（留空复用主）">
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="testConn('redis','slave')">测试连接</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== 达梦数据库 (Dameng) ===== -->
+                <div id="dmFields" style="display:none">
+                    <input type="hidden" name="dameng_subtype" id="dmSubtype" value="standby">
+                    <h6 style="color:#D97706;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)">达梦数据库</h6>
+                    <div style="display:flex;gap:var(--space-2);margin-bottom:var(--space-3)">
+                        <label class="form-check"><input class="form-check-input" type="radio" name="dm_subtype_radio" value="standby" checked onchange="dmSwitchSub('standby')"> 主备模式</label>
+                        <label class="form-check"><input class="form-check-input" type="radio" name="dm_subtype_radio" value="dsc" onchange="dmSwitchSub('dsc')"> DSC 集群（服务关停测试）</label>
+                    </div>
+                    <!-- 主备子表 -->
+                    <div id="dmStandbySub">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">主库 (Primary)</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_user" id="dmUser" value="SYSDBA" placeholder="用户">
+                                        <input class="form-control form-control-sm" type="password" name="dm_pass" id="dmPass" placeholder="密码">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_primary_host" id="dmPrimHost" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="dm_primary_port" id="dmPrimPort" value="5236" placeholder="端口">
+                                    </div>
+                                    <input class="form-control form-control-sm mt-2" name="dm_primary_sid" id="dmPrimSid" placeholder="SID (如 DMSERVER01)">
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('dm','primary')">测试连接</button>
+                                </div>
+                            </div>
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">备库 (Standby)</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_standby_user" id="dmStbyUser" placeholder="账号（留空复用主库）">
+                                        <input class="form-control form-control-sm" type="password" name="dm_standby_pass" id="dmStbyPass" placeholder="密码（留空复用主库）">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_standby_host" id="dmStbyHost" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="dm_standby_port" id="dmStbyPort" value="5236" placeholder="端口">
+                                    </div>
+                                    <input class="form-control form-control-sm mt-2" name="dm_standby_sid" id="dmStbySid" placeholder="SID (如 DMSERVER02)">
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('dm','standby')">测试连接</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- DSC 子表 -->
+                    <div id="dmDscSub" style="display:none">
+                        <div class="alert alert-info" style="font-size:.8rem;padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3)"><strong>DSC 切换 = 服务关停测试</strong>：依次关停节点数据库服务，验证集群高可用，不做角色互换。</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">节点1</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_dsc_user" id="dmDscUser" value="SYSDBA" placeholder="用户">
+                                        <input class="form-control form-control-sm" type="password" name="dm_dsc_pass" id="dmDscPass" placeholder="密码">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_dsc_node1_host" id="dmDscNode1Host" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="dm_dsc_node1_port" id="dmDscNode1Port" value="5236" placeholder="端口">
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('dm','dsc-node1')">测试连接</button>
+                                </div>
+                            </div>
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">节点2</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_dsc_node2_user" id="dmDscNode2User" placeholder="账号（留空复用节点1）">
+                                        <input class="form-control form-control-sm" type="password" name="dm_dsc_node2_pass" id="dmDscNode2Pass" placeholder="密码（留空复用节点1）">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="dm_dsc_node2_host" id="dmDscNode2Host" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="dm_dsc_node2_port" id="dmDscNode2Port" value="5236" placeholder="端口">
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('dm','dsc-node2')">测试连接</button>
+                                </div>
+                            </div>
+                        </div>
+                        <input class="form-control form-control-sm" name="dm_dsc_service_name" id="dmDscSvc" value="DSC_SERVICE" placeholder="服务名" style="max-width:300px">
+                    </div>
+                </div>
+
+                <!-- ===== 金仓数据库 (KingbaseES) ===== -->
+                <div id="kbFields" style="display:none">
+                    <input type="hidden" name="kingbase_subtype" id="kbSubtype" value="standby">
+                    <h6 style="color:#2563EB;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)">金仓数据库</h6>
+                    <div style="display:flex;gap:var(--space-2);margin-bottom:var(--space-3)">
+                        <label class="form-check"><input class="form-check-input" type="radio" name="kb_subtype_radio" value="standby" checked onchange="kbSwitchSub('standby')"> 主备模式</label>
+                        <label class="form-check"><input class="form-check-input" type="radio" name="kb_subtype_radio" value="kdc" onchange="kbSwitchSub('kdc')"> KDC 集群（服务关停测试）</label>
+                    </div>
+                    <!-- 主备子表 -->
+                    <div id="kbStandbySub">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">主库 (Primary)</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_user" id="kbUser" value="SYSTEM" placeholder="用户">
+                                        <input class="form-control form-control-sm" type="password" name="kb_pass" id="kbPass" placeholder="密码">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_primary_host" id="kbPrimHost" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="kb_primary_port" id="kbPrimPort" value="54321" placeholder="端口">
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('kb','primary')">测试连接</button>
+                                </div>
+                            </div>
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">备库 (Standby)</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_standby_user" id="kbStbyUser" placeholder="账号（留空复用主库）">
+                                        <input class="form-control form-control-sm" type="password" name="kb_standby_pass" id="kbStbyPass" placeholder="密码（留空复用主库）">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_standby_host" id="kbStbyHost" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="kb_standby_port" id="kbStbyPort" value="54321" placeholder="端口">
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('kb','standby')">测试连接</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- KDC 子表 -->
+                    <div id="kbKdcSub" style="display:none">
+                        <div class="alert alert-info" style="font-size:.8rem;padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3)"><strong>KDC 切换 = 服务关停测试</strong>：依次关停节点数据库服务，验证集群高可用，不做角色互换。</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4)">
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">节点1</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_kdc_user" id="kbKdcUser" value="SYSTEM" placeholder="用户">
+                                        <input class="form-control form-control-sm" type="password" name="kb_kdc_pass" id="kbKdcPass" placeholder="密码">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_kdc_node1_host" id="kbKdcNode1Host" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="kb_kdc_node1_port" id="kbKdcNode1Port" value="54321" placeholder="端口">
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('kb','kdc-node1')">测试连接</button>
+                                </div>
+                            </div>
+                            <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-200)">
+                                <div class="card-body">
+                                    <h6 style="color:var(--slate-700);margin-bottom:var(--space-3)">节点2</h6>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_kdc_node2_user" id="kbKdcNode2User" placeholder="账号（留空复用节点1）">
+                                        <input class="form-control form-control-sm" type="password" name="kb_kdc_node2_pass" id="kbKdcNode2Pass" placeholder="密码（留空复用节点1）">
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                                        <input class="form-control form-control-sm" name="kb_kdc_node2_host" id="kbKdcNode2Host" placeholder="主机地址">
+                                        <input class="form-control form-control-sm" name="kb_kdc_node2_port" id="kbKdcNode2Port" value="54321" placeholder="端口">
+                                    </div>
+                                    <button type="button" class="btn btn-outline btn-sm mt-2" onclick="testConn('kb','kdc-node2')">测试连接</button>
+                                </div>
+                            </div>
+                        </div>
+                        <input class="form-control form-control-sm" name="kb_kdc_service_name" id="kbKdcSvc" value="KDC_SERVICE" placeholder="服务名" style="max-width:300px">
+                    </div>
+                </div>
+
+                <!-- openGauss / GaussDB 字段 -->
+                <div id="ogFields" style="display:none">
+                    <input type="hidden" name="opengauss_subtype" id="ogSubtype" value="standby">
+                    <!-- 主库 -->
+                    <label class="form-label">openGauss 主库</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="og_primary_host" id="ogPrimaryHost" placeholder="主库地址">
+                        <input class="form-control form-control-sm" name="og_primary_port" id="ogPrimaryPort" value="5432" placeholder="端口">
+                        <input class="form-control form-control-sm" name="og_user" id="ogUser" value="gaussdb" placeholder="用户名">
+                        <input class="form-control form-control-sm" type="password" name="og_pass" id="ogPass" placeholder="密码">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('opengauss','primary')">测试主库连接</button>
+                    <!-- 备库 -->
+                    <label class="form-label">openGauss 备库</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="og_standby_host" id="ogStandbyHost" placeholder="备库地址">
+                        <input class="form-control form-control-sm" name="og_standby_port" id="ogStandbyPort" value="5432" placeholder="端口">
+                        <input class="form-control form-control-sm" name="og_standby_user" id="ogStandbyUser" placeholder="用户名（留空复用）">
+                        <input class="form-control form-control-sm" type="password" name="og_standby_pass" id="ogStandbyPass" placeholder="密码（留空复用）">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('opengauss','standby')">测试备库连接</button>
+                    <input class="form-control form-control-sm" name="og_db_name" id="ogDbName" value="postgres" placeholder="数据库名" style="max-width:300px">
+                    <!-- 集群模式额外字段 -->
+                    <div id="ogClusterFields" style="display:none;margin-top:var(--space-3)">
+                        <label class="form-label">集群节点</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="og_cluster_node1_host" id="ogClusterNode1Host" placeholder="节点1地址">
+                            <input class="form-control form-control-sm" name="og_cluster_node1_port" id="ogClusterNode1Port" value="5432" placeholder="端口">
+                        </div>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                            <input class="form-control form-control-sm" name="og_cluster_node2_host" id="ogClusterNode2Host" placeholder="节点2地址">
+                            <input class="form-control form-control-sm" name="og_cluster_node2_port" id="ogClusterNode2Port" value="5432" placeholder="端口">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OceanBase 字段 -->
+                <div id="obFields" style="display:none">
+                    <input type="hidden" name="oceanbase_subtype" id="obSubtype" value="standby">
+                    <label class="form-label">OceanBase 主租户</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="ob_primary_host" id="obPrimaryHost" placeholder="主集群地址">
+                        <input class="form-control form-control-sm" name="ob_primary_port" id="obPrimaryPort" value="2881" placeholder="端口">
+                        <input class="form-control form-control-sm" name="ob_user" id="obUser" value="root" placeholder="用户名">
+                        <input class="form-control form-control-sm" type="password" name="ob_pass" id="obPass" placeholder="密码">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('oceanbase','primary')">测试主集群连接</button>
+                    <label class="form-label">OceanBase 备租户</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="ob_standby_host" id="obStandbyHost" placeholder="备集群地址">
+                        <input class="form-control form-control-sm" name="ob_standby_port" id="obStandbyPort" value="2881" placeholder="端口">
+                        <input class="form-control form-control-sm" name="ob_standby_user" id="obStandbyUser" placeholder="用户名（留空复用）">
+                        <input class="form-control form-control-sm" type="password" name="ob_standby_pass" id="obStandbyPass" placeholder="密码（留空复用）">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('oceanbase','standby')">测试备集群连接</button>
+                    <input class="form-control form-control-sm" name="ob_tenant_name" id="obTenantName" placeholder="租户名称（可选）" style="max-width:300px">
+                    <div id="obClusterFields" style="display:none;margin-top:var(--space-3)">
+                        <label class="form-label">集群节点</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="ob_cluster_node1_host" id="obClusterNode1Host" placeholder="节点1地址">
+                            <input class="form-control form-control-sm" name="ob_cluster_node1_port" id="obClusterNode1Port" value="2881" placeholder="端口">
+                        </div>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                            <input class="form-control form-control-sm" name="ob_cluster_node2_host" id="obClusterNode2Host" placeholder="节点2地址">
+                            <input class="form-control form-control-sm" name="ob_cluster_node2_port" id="obClusterNode2Port" value="2881" placeholder="端口">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TiDB 字段 -->
+                <div id="tidbFields" style="display:none">
+                    <input type="hidden" name="tidb_subtype" id="tidbSubtype" value="standby">
+                    <label class="form-label">TiDB 主集群</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="tidb_primary_host" id="tidbPrimaryHost" placeholder="主集群 PD/TiDB 地址">
+                        <input class="form-control form-control-sm" name="tidb_primary_port" id="tidbPrimaryPort" value="4000" placeholder="TiDB端口">
+                        <input class="form-control form-control-sm" name="tidb_user" id="tidbUser" value="root" placeholder="用户名">
+                        <input class="form-control form-control-sm" type="password" name="tidb_pass" id="tidbPass" placeholder="密码">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('tidb','primary')">测试主集群连接</button>
+                    <label class="form-label">TiDB 备集群</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="tidb_standby_host" id="tidbStandbyHost" placeholder="备集群地址">
+                        <input class="form-control form-control-sm" name="tidb_standby_port" id="tidbStandbyPort" value="4000" placeholder="端口">
+                        <input class="form-control form-control-sm" name="tidb_standby_user" id="tidbStandbyUser" placeholder="用户名（留空复用）">
+                        <input class="form-control form-control-sm" type="password" name="tidb_standby_pass" id="tidbStandbyPass" placeholder="密码（留空复用）">
+                    </div>
+                    <div style="display:grid;grid-template-columns:2fr 2fr;gap:var(--space-2);max-width:300px;margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="tidb_db_name" id="tidbDbName" value="test" placeholder="数据库名">
+                        <input class="form-control form-control-sm" name="tidb_pd_port" id="tidbPdPort" value="2379" placeholder="PD端口">
+                    </div>
+                    <div id="tidbClusterFields" style="display:none;margin-top:var(--space-3)">
+                        <label class="form-label">集群节点</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="tidb_cluster_node1_host" id="tidbClusterNode1Host" placeholder="节点1地址">
+                            <input class="form-control form-control-sm" name="tidb_cluster_node1_port" id="tidbClusterNode1Port" value="4000" placeholder="端口">
+                        </div>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                            <input class="form-control form-control-sm" name="tidb_cluster_node2_host" id="tidbClusterNode2Host" placeholder="节点2地址">
+                            <input class="form-control form-control-sm" name="tidb_cluster_node2_port" id="tidbClusterNode2Port" value="4000" placeholder="端口">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MongoDB 字段 -->
+                <div id="mongoFields" style="display:none">
+                    <input type="hidden" name="mongodb_subtype" id="mongoSubtype" value="replica">
+                    <label class="form-label">MongoDB Primary</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="mongo_primary_host" id="mongoPrimaryHost" placeholder="Primary 地址">
+                        <input class="form-control form-control-sm" name="mongo_primary_port" id="mongoPrimaryPort" value="27017" placeholder="端口">
+                        <input class="form-control form-control-sm" name="mongo_user" id="mongoUser" placeholder="用户名">
+                        <input class="form-control form-control-sm" type="password" name="mongo_pass" id="mongoPass" placeholder="密码">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('mongodb','primary')">测试 Primary 连接</button>
+                    <label class="form-label">MongoDB Secondary</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="mongo_standby_host" id="mongoStandbyHost" placeholder="Secondary 地址">
+                        <input class="form-control form-control-sm" name="mongo_standby_port" id="mongoStandbyPort" value="27017" placeholder="端口">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('mongodb','standby')">测试 Secondary 连接</button>
+                    <div style="display:grid;grid-template-columns:2fr 2fr;gap:var(--space-2);max-width:400px">
+                        <input class="form-control form-control-sm" name="mongo_replset_name" id="mongoReplsetName" value="rs0" placeholder="副本集名称">
+                        <input class="form-control form-control-sm" name="mongo_auth_db" id="mongoAuthDb" value="admin" placeholder="认证数据库">
+                    </div>
+                    <div id="mongoClusterFields" style="display:none;margin-top:var(--space-3)">
+                        <label class="form-label">分片集群节点</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="mongo_cluster_node1_host" id="mongoClusterNode1Host" placeholder="节点1地址">
+                            <input class="form-control form-control-sm" name="mongo_cluster_node1_port" id="mongoClusterNode1Port" value="27017" placeholder="端口">
+                        </div>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2)">
+                            <input class="form-control form-control-sm" name="mongo_cluster_node2_host" id="mongoClusterNode2Host" placeholder="节点2地址">
+                            <input class="form-control form-control-sm" name="mongo_cluster_node2_port" id="mongoClusterNode2Port" value="27017" placeholder="端口">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 瀚高(HighGo) 字段 -->
+                <div id="hgFields" style="display:none">
+                    <label class="form-label">瀚高主库</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="hg_primary_host" id="hgPrimaryHost" placeholder="主库地址">
+                        <input class="form-control form-control-sm" name="hg_primary_port" id="hgPrimaryPort" value="5866" placeholder="端口">
+                        <input class="form-control form-control-sm" name="hg_user" id="hgUser" value="highgo" placeholder="用户名">
+                        <input class="form-control form-control-sm" type="password" name="hg_pass" id="hgPass" placeholder="密码">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('highgo','primary')">测试主库连接</button>
+                    <label class="form-label">瀚高备库</label>
+                    <div style="display:grid;grid-template-columns:3fr 1fr 2fr 2fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                        <input class="form-control form-control-sm" name="hg_standby_host" id="hgStandbyHost" placeholder="备库地址">
+                        <input class="form-control form-control-sm" name="hg_standby_port" id="hgStandbyPort" value="5866" placeholder="端口">
+                        <input class="form-control form-control-sm" name="hg_standby_user" id="hgStandbyUser" placeholder="用户名（留空复用）">
+                        <input class="form-control form-control-sm" type="password" name="hg_standby_pass" id="hgStandbyPass" placeholder="密码（留空复用）">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('highgo','standby')">测试备库连接</button>
+                    <input class="form-control form-control-sm" name="hg_db_name" id="hgDbName" value="highgo" placeholder="数据库名" style="max-width:300px">
+                </div>
+
+                <!-- ===== 中间件字段 ===== -->
+                <div id="mwFields" style="display:none">
+                    <input type="hidden" name="middleware_type" id="mwType" value="nginx">
+                    <input type="hidden" name="mw_subtype" id="mwSubtype" value="active_standby">
+                    <!-- 中间件主备模式 -->
+                    <div id="mwPrimaryFields">
+                        <label class="form-label">主节点</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="mw_primary_host" id="mwPrimaryHost" placeholder="主节点地址">
+                            <input class="form-control form-control-sm" name="mw_primary_port" id="mwPrimaryPort" value="80" placeholder="端口">
+                        </div>
+                        <label class="form-label">备节点</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="mw_secondary_host" id="mwSecondaryHost" placeholder="备节点地址">
+                            <input class="form-control form-control-sm" name="mw_secondary_port" id="mwSecondaryPort" value="80" placeholder="端口">
+                        </div>
+                        <div id="mwVipField" style="margin-bottom:var(--space-2)">
+                            <label class="form-label">VIP 虚拟IP（Keepalived，Nginx专用）</label>
+                            <input class="form-control form-control-sm" name="mw_vip" id="mwVip" placeholder="如 192.168.1.100（可选）" style="max-width:300px">
+                        </div>
+                    </div>
+                    <!-- 中间件集群模式 -->
+                    <div id="mwClusterFields" style="display:none">
+                        <label class="form-label">集群节点1</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="mw_cluster_node1_host" id="mwNode1Host" placeholder="节点1地址">
+                            <input class="form-control form-control-sm" name="mw_cluster_node1_port" id="mwNode1Port" value="80" placeholder="端口">
+                        </div>
+                        <label class="form-label">集群节点2</label>
+                        <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                            <input class="form-control form-control-sm" name="mw_cluster_node2_host" id="mwNode2Host" placeholder="节点2地址">
+                            <input class="form-control form-control-sm" name="mw_cluster_node2_port" id="mwNode2Port" value="80" placeholder="端口">
+                        </div>
+                        <div id="mwNode3Field" style="display:none">
+                            <label class="form-label">集群节点3（ES/ZK 三节点）</label>
+                            <div style="display:grid;grid-template-columns:3fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2)">
+                                <input class="form-control form-control-sm" name="mw_cluster_node3_host" id="mwNode3Host" placeholder="节点3地址">
+                                <input class="form-control form-control-sm" name="mw_cluster_node3_port" id="mwNode3Port" value="80" placeholder="端口">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 通用中间件参数 -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-2);margin-top:var(--space-3)">
+                        <div class="form-group">
+                            <label class="form-label">管理端口</label>
+                            <input class="form-control form-control-sm" name="mw_api_port" id="mwApiPort" value="0" placeholder="如 9200">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">认证用户</label>
+                            <input class="form-control form-control-sm" name="mw_user" id="mwUser" placeholder="用户名（可选）">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">认证密码</label>
+                            <input class="form-control form-control-sm" type="password" name="mw_pass" id="mwPass" placeholder="密码（可选）">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top:var(--space-2)">
+                        <label class="form-label">集群名称（ES/RabbitMQ/Kafka）</label>
+                        <input class="form-control form-control-sm" name="mw_cluster_name" id="mwClusterName" placeholder="如 my-es-cluster（可选）" style="max-width:350px">
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm mb-3" onclick="testConn('middleware','primary')" style="margin-top:var(--space-3)">测试中间件连接</button>
+                </div>
+
+                <!-- 切换参数 -->
+                <div class="divider"></div>
+                <h6 style="color:var(--slate-500);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3)">切换参数</h6>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4)">
+                    <div class="form-group">
+                        <label class="form-label">最大延迟(秒)</label>
+                        <input class="form-control" type="number" name="max_delay" id="maxDelay" value="60">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">等待超时(秒)</label>
+                        <input class="form-control" type="number" name="wait_timeout" id="waitTimeout" value="300">
+                    </div>
+                </div>
+                <div style="display:flex;gap:var(--space-4);flex-wrap:wrap;margin-top:var(--space-2)">
+                    <label class="form-check"><input class="form-check-input" type="checkbox" name="force_switchover" id="forceSwitch"> 强制切换</label>
+                    <label class="form-check"><input class="form-check-input" type="checkbox" name="auto_rollback" id="autoRollback" checked> 失败自动回滚</label>
+                    <label class="form-check"><input class="form-check-input" type="checkbox" name="skip_delay_check" id="skipDelay"> 跳过延迟检查</label>
+                    <label class="form-check"><input class="form-check-input" type="checkbox" name="skip_consistency_check" id="skipConsistency"> 跳过一致性检查</label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentDbType = 'mysql';
+let editingId = null;
+// 双维度筛选：dbtype 数据库类型 + cluster 集群模式(replica 复制型/shutdown 关停测试)
+let activeFilter = { mode: 'dbtype', value: '' };
+
+function filterConfig(type) {
+    // 从 event.target 推断是哪个 tab group（根据父容器）
+    const btn = event && event.target ? event.target.closest('.db-type-tab') : null;
+    const mode = btn && btn.dataset.mode === 'cluster' ? 'cluster' : 'dbtype';
+    activeFilter = { mode, value: type || '' };
+    // 高亮当前按钮
+    if (mode === 'cluster') {
+        document.querySelectorAll('#configClusterModeTabs .db-type-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('#configFilterTabs .db-type-tab').forEach(t => {
+            // 当用户切到集群模式时，将"数据库类型"tab重置为全部(高亮空值)
+            if (!t.dataset.value) t.classList.add('active'); else t.classList.remove('active');
+        });
+    } else {
+        document.querySelectorAll('#configFilterTabs .db-type-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('#configClusterModeTabs .db-type-tab').forEach(t => {
+            if (!t.dataset.value) t.classList.add('active'); else t.classList.remove('active');
+        });
+    }
+    if (btn) btn.classList.add('active');
+
+    document.querySelectorAll('#configsTable tbody tr').forEach(tr => {
+        let show = true;
+        if (activeFilter.mode === 'dbtype' && activeFilter.value) {
+            show = (tr.dataset.dbType === activeFilter.value);
+        } else if (activeFilter.mode === 'cluster' && activeFilter.value) {
+            show = (tr.dataset.clusterType === activeFilter.value);
+        }
+        tr.style.display = show ? '' : 'none';
+    });
+}
+
+function switchOracleSub(sub) {
+    document.getElementById('oraSubtype').value = sub;
+    document.querySelectorAll('[name="ora_subtype_radio"]').forEach(r => r.checked = (r.value === sub));
+    document.getElementById('oraAdgSub').style.display = (sub === 'adg') ? '' : 'none';
+    document.getElementById('oraRacSub').style.display = (sub === 'rac') ? '' : 'none';
+    // RAC 模式下隐藏 connect_mode
+    document.getElementById('oraMode').parentElement.style.display = (sub === 'rac') ? 'none' : '';
+    // RAC 模式下隐藏 max_delay
+    document.getElementById('maxDelay').parentElement.style.display = (sub === 'rac') ? 'none' : '';
+}
+
+function switchClusterMode(mode) {
+    document.querySelectorAll('#clusterModeToggle .cluster-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === mode));
+    document.getElementById('replicaTypeTabs').style.display = (mode === 'replica') ? '' : 'none';
+    document.getElementById('shutdownTypeTabs').style.display = (mode === 'shutdown') ? '' : 'none';
+    document.getElementById('replicaSectionLabel').style.display = (mode === 'replica') ? '' : 'none';
+    document.getElementById('shutdownSectionLabel').style.display = (mode === 'shutdown') ? '' : 'none';
+    // 默认聚焦该组第一个 tab
+    if (mode === 'replica') switchDbType('mysql', 'replica');
+    else if (mode === 'shutdown') switchDbType('mysql', 'mgr_multi');
+}
+
+function switchMySqlSub(sub) {
+    document.getElementById('mysqlSubtype').value = sub;
+    document.querySelectorAll('[name="mysql_subtype_radio"]').forEach(r => r.checked = (r.value === sub));
+    const leftTitle = document.getElementById('mysqlLeftTitle');
+    const rightTitle = document.getElementById('mysqlRightTitle');
+    const slaveAccount = document.getElementById('mysqlSlaveAccount');
+    if (sub === 'mgr_single') {
+        leftTitle.textContent = 'Primary (当前主节点)';
+        rightTitle.textContent = 'Secondary (目标主节点)';
+        slaveAccount.style.display = 'none';
+    } else if (sub === 'mgr_multi') {
+        leftTitle.textContent = '节点1';
+        rightTitle.textContent = '节点2';
+        slaveAccount.style.display = 'none';
+    } else {
+        leftTitle.textContent = '主库 (Master)';
+        rightTitle.textContent = '从库 (Slave)';
+        slaveAccount.style.display = 'grid';
+    }
+    // 若用户在 MySQL 字段区内切到多主模式，属于 shutdown；单主/普通属于 replica
+    // 不自动切换 toggle，仅更新 hidden subtype
+}
+
+function switchDbType(type, subtype, mwType) {
+    currentDbType = type;
+    if (subtype) {
+        if (type === 'mysql') document.getElementById('mysqlSubtype').value = subtype;
+        if (type === 'oracle') document.getElementById('oraSubtype').value = subtype;
+        if (type === 'dameng') document.getElementById('dmSubtype').value = subtype;
+        if (type === 'kingbase') document.getElementById('kbSubtype').value = subtype;
+        if (type === 'opengauss') document.getElementById('ogSubtype').value = subtype;
+        if (type === 'oceanbase') document.getElementById('obSubtype').value = subtype;
+        if (type === 'tidb') document.getElementById('tidbSubtype').value = subtype;
+        if (type === 'mongodb') document.getElementById('mongoSubtype').value = subtype;
+        if (type === 'middleware') {
+            document.getElementById('mwSubtype').value = subtype;
+            if (mwType) document.getElementById('mwType').value = mwType;
+        }
+    }
+    document.getElementById('formDbType').value = type;
+    // 高亮 tab
+    document.querySelectorAll('.db-type-tab').forEach(t => {
+        const matchesType = t.dataset.type === type;
+        let matchesSub = !t.dataset.subtype || t.dataset.subtype === subtype;
+        if (type === 'middleware' && mwType) {
+            matchesSub = matchesSub && t.dataset.mwType === mwType;
+        }
+        t.classList.toggle('active', matchesType && matchesSub);
+    });
+    // 显示对应字段区
+    ['mysqlFields','oracleFields','pgFields','redisFields','dmFields','kbFields',
+     'ogFields','obFields','tidbFields','mongoFields','hgFields','mwFields'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const map = {mysql:'mysqlFields',oracle:'oracleFields',postgresql:'pgFields',redis:'redisFields',
+                 dameng:'dmFields',kingbase:'kbFields',
+                 opengauss:'ogFields',oceanbase:'obFields',tidb:'tidbFields',mongodb:'mongoFields',
+                 highgo:'hgFields',middleware:'mwFields'};
+    const target = map[type];
+    if (target) document.getElementById(target).style.display = '';
+    // 触发 subtype 切换
+    if (type === 'mysql') switchMySqlSub(subtype || 'replica');
+    if (type === 'oracle') switchOracleSub(subtype || 'adg');
+    if (type === 'dameng') dmSwitchSub(subtype || 'standby');
+    if (type === 'kingbase') kbSwitchSub(subtype || 'standby');
+    if (type === 'opengauss') {
+        const ogCluster = document.getElementById('ogClusterFields');
+        if (ogCluster) ogCluster.style.display = (subtype === 'cluster') ? '' : 'none';
+    }
+    if (type === 'oceanbase') {
+        const obCluster = document.getElementById('obClusterFields');
+        if (obCluster) obCluster.style.display = (subtype === 'cluster') ? '' : 'none';
+    }
+    if (type === 'tidb') {
+        const tdCluster = document.getElementById('tidbClusterFields');
+        if (tdCluster) tdCluster.style.display = (subtype === 'cluster') ? '' : 'none';
+    }
+    if (type === 'mongodb') {
+        const mgCluster = document.getElementById('mongoClusterFields');
+        if (mgCluster) mgCluster.style.display = (subtype === 'cluster') ? '' : 'none';
+    }
+    // 中间件：主备/集群字段切换
+    if (type === 'middleware') {
+        mwSwitchSub(subtype || 'active_standby', mwType);
+    }
+}
+
+// 中间件子模式切换
+function mwSwitchSub(sub, mwType) {
+    const isCluster = sub === 'cluster';
+    const primEl = document.getElementById('mwPrimaryFields');
+    const clusterEl = document.getElementById('mwClusterFields');
+    if (primEl) primEl.style.display = isCluster ? 'none' : '';
+    if (clusterEl) clusterEl.style.display = isCluster ? '' : 'none';
+    // VIP 字段仅 Nginx 主备模式显示
+    const vipEl = document.getElementById('mwVipField');
+    if (vipEl) vipEl.style.display = (!isCluster && mwType === 'nginx') ? '' : 'none';
+    // 三节点字段仅 ES/ZK 显示
+    const node3El = document.getElementById('mwNode3Field');
+    if (node3El) node3El.style.display = (isCluster && (mwType === 'elasticsearch' || mwType === 'zookeeper')) ? '' : 'none';
+    // 默认端口
+    const portMap = {nginx:80, tomcat:8080, kafka:9092, zookeeper:2181, elasticsearch:9200, rabbitmq:5672};
+    const apiPortMap = {nginx:80, tomcat:8080, kafka:9092, zookeeper:2181, elasticsearch:9200, rabbitmq:15672};
+    if (mwType && portMap[mwType]) {
+        const pEl = document.getElementById('mwPrimaryPort');
+        const sEl = document.getElementById('mwSecondaryPort');
+        const n1El = document.getElementById('mwNode1Port');
+        const n2El = document.getElementById('mwNode2Port');
+        const n3El = document.getElementById('mwNode3Port');
+        if (pEl && !pEl.dataset.userSet) pEl.value = portMap[mwType];
+        if (sEl && !sEl.dataset.userSet) sEl.value = portMap[mwType];
+        if (n1El && !n1El.dataset.userSet) n1El.value = portMap[mwType];
+        if (n2El && !n2El.dataset.userSet) n2El.value = portMap[mwType];
+        if (n3El && !n3El.dataset.userSet) n3El.value = portMap[mwType];
+        const apiEl = document.getElementById('mwApiPort');
+        if (apiEl) apiEl.value = apiPortMap[mwType];
+    }
+}
+
+function openCreateModal() {
+    editingId = null;
+    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-plus-circle me-2"></i>新增配置';
+    document.getElementById('configForm').reset();
+    document.getElementById('cfgId').value = '';
+    switchClusterMode('replica');  // 默认进入复制型
+    document.getElementById('masterPort').value = '3306';
+    document.getElementById('slavePort').value = '3306';
+    document.getElementById('oraPrimPort').value = '1521';
+    document.getElementById('oraStbyPort').value = '1521';
+    document.getElementById('pgPrimPort').value = '5432';
+    document.getElementById('pgStbyPort').value = '5432';
+    document.getElementById('redisMasterPort').value = '6379';
+    document.getElementById('redisSlavePort').value = '6379';
+    document.getElementById('dmPrimPort').value = '5236';
+    document.getElementById('dmStbyPort').value = '5236';
+    document.getElementById('dmDscNode1Port').value = '5236';
+    document.getElementById('dmDscNode2Port').value = '5236';
+    document.getElementById('kbPrimPort').value = '54321';
+    document.getElementById('kbStbyPort').value = '54321';
+    document.getElementById('kbKdcNode1Port').value = '54321';
+    document.getElementById('kbKdcNode2Port').value = '54321';
+    document.getElementById('racNode1Host').value = '';
+    document.getElementById('racNode1Sid').value = '';
+    document.getElementById('racNode2Host').value = '';
+    document.getElementById('racNode2Sid').value = '';
+    document.getElementById('autoRollback').checked = true;
+    document.getElementById('configModal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('configModal').classList.remove('show'); }
+
+async function editConfig(id) {
+    const resp = await fetch('/api/configs').then(r => r.json());
+    const cfg = resp.find(c => c.id === id);
+    if (!cfg) return;
+    editingId = id;
+    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>编辑配置';
+    document.getElementById('cfgId').value = id;
+
+    // 计算 cfg 的真实集群模式 + 子类型
+    let sub = '';
+    if (cfg.db_type === 'mysql')    sub = cfg.mysql_subtype || 'replica';
+    if (cfg.db_type === 'oracle')   sub = cfg.oracle_subtype || 'adg';
+    if (cfg.db_type === 'dameng')   sub = cfg.dameng_subtype || 'standby';
+    if (cfg.db_type === 'kingbase') sub = cfg.kingbase_subtype || 'standby';
+    const isShutdown = ['rac','dsc','kdc','mgr_multi'].includes(sub);
+    switchClusterMode(isShutdown ? 'shutdown' : 'replica');
+    // 注意 switchClusterMode 会在 replica 时调 switchDbType('mysql','replica'), shutdown 时调 switchDbType('mysql','mgr_multi')
+    // 我们随后用真正的 cfg 信息覆盖一次
+    switchDbType(cfg.db_type || 'mysql', sub);
+    document.getElementById('cfgName').value = cfg.name || '';
+    document.getElementById('cfgDesc').value = cfg.description || '';
+    document.getElementById('maxDelay').value = cfg.max_delay || 60;
+    document.getElementById('waitTimeout').value = cfg.wait_timeout || 300;
+    document.getElementById('forceSwitch').checked = cfg.force_switchover || false;
+    document.getElementById('autoRollback').checked = cfg.auto_rollback !== false;
+    document.getElementById('skipDelay').checked = cfg.skip_delay_check || false;
+    document.getElementById('skipConsistency').checked = cfg.skip_consistency_check || false;
+    // MySQL
+    const mysqlSub = cfg.mysql_subtype || 'replica';
+    document.getElementById('mysqlSubtype').value = mysqlSub;
+    switchMySqlSub(mysqlSub);
+    document.getElementById('mysqlUser').value = cfg.mysql_user || 'root';
+    document.getElementById('mysqlPass').value = cfg.mysql_pass || '';
+    document.getElementById('masterHost').value = cfg.master_host || '';
+    document.getElementById('masterPort').value = cfg.master_port || 3306;
+    document.getElementById('slaveHost').value = cfg.slave_host || '';
+    document.getElementById('slavePort').value = cfg.slave_port || 3306;
+    document.getElementById('mysqlSlaveUser').value = cfg.mysql_slave_user || '';
+    document.getElementById('mysqlSlavePass').value = cfg.mysql_slave_pass || '';
+    document.getElementById('mysqlReplUser').value = cfg.mysql_repl_user || 'repl';
+    document.getElementById('mysqlReplPass').value = cfg.mysql_repl_pass || '';
+    // Oracle（共用 oracle_user/oracle_pass）
+    if (cfg.db_type === 'oracle') {
+        const oraSub = (cfg.oracle_subtype || 'adg');
+        document.getElementById('oraSubtype').value = oraSub;
+        document.getElementById('oraUser').value = cfg.oracle_user || 'sys';
+        document.getElementById('oraPass').value = cfg.oracle_pass || '';
+        document.getElementById('oraMode').value = cfg.oracle_connect_mode || 'SYSDBA';
+        document.getElementById('oraPrimHost').value = cfg.oracle_primary_host || '';
+        document.getElementById('oraPrimPort').value = cfg.oracle_primary_port || 1521;
+        document.getElementById('oraPrimSid').value = cfg.oracle_primary_sid || '';
+        document.getElementById('oraStbyHost').value = cfg.oracle_standby_host || '';
+        document.getElementById('oraStbyPort').value = cfg.oracle_standby_port || 1521;
+        document.getElementById('oraStbySid').value = cfg.oracle_standby_sid || '';
+        document.getElementById('oraStbyUser').value = cfg.oracle_standby_user || '';
+        document.getElementById('oraStbyPass').value = cfg.oracle_standby_pass || '';
+        document.getElementById('racNode1Host').value = cfg.rac_node1_host || '';
+        document.getElementById('racNode1Sid').value = cfg.rac_node1_sid || '';
+        document.getElementById('racNode2Host').value = cfg.rac_node2_host || '';
+        document.getElementById('racNode2Sid').value = cfg.rac_node2_sid || '';
+        document.getElementById('racNode2User').value = cfg.rac_node2_user || '';
+        document.getElementById('racNode2Pass').value = cfg.rac_node2_pass || '';
+        document.getElementById('racSvcName').value = cfg.rac_service_name || '';
+        switchOracleSub(oraSub);
+    }
+    // PG
+    document.getElementById('pgUser').value = cfg.pg_user || 'postgres';
+    document.getElementById('pgPass').value = cfg.pg_pass || '';
+    document.getElementById('pgPrimHost').value = cfg.pg_primary_host || '';
+    document.getElementById('pgPrimPort').value = cfg.pg_primary_port || 5432;
+    document.getElementById('pgStbyHost').value = cfg.pg_standby_host || '';
+    document.getElementById('pgStbyPort').value = cfg.pg_standby_port || 5432;
+    document.getElementById('pgStbyUser').value = cfg.pg_standby_user || '';
+    document.getElementById('pgStbyPass').value = cfg.pg_standby_pass || '';
+    // Redis
+    document.getElementById('redisMasterHost').value = cfg.redis_master_host || '';
+    document.getElementById('redisMasterPort').value = cfg.redis_master_port || 6379;
+    document.getElementById('redisMasterUser').value = cfg.redis_master_user || '';
+    document.getElementById('redisMasterPass').value = cfg.redis_master_pass || '';
+    document.getElementById('redisSlaveHost').value = cfg.redis_slave_host || '';
+    document.getElementById('redisSlavePort').value = cfg.redis_slave_port || 6379;
+    document.getElementById('redisSlaveUser').value = cfg.redis_slave_user || '';
+    document.getElementById('redisSlavePass').value = cfg.redis_slave_pass || '';
+    // 达梦
+    if (cfg.db_type === 'dameng') {
+        const dmSub = (cfg.dameng_subtype || 'standby');
+        document.getElementById('dmSubtype').value = dmSub;
+        dmSwitchSub(dmSub);
+        if (dmSub === 'dsc') {
+            document.getElementById('dmDscUser').value = cfg.dm_dsc_user || 'SYSDBA';
+            document.getElementById('dmDscPass').value = cfg.dm_dsc_pass || '';
+            document.getElementById('dmDscNode1Host').value = cfg.dm_dsc_node1_host || '';
+            document.getElementById('dmDscNode1Port').value = cfg.dm_dsc_node1_port || 5236;
+            document.getElementById('dmDscNode2Host').value = cfg.dm_dsc_node2_host || '';
+            document.getElementById('dmDscNode2Port').value = cfg.dm_dsc_node2_port || 5236;
+            document.getElementById('dmDscNode2User').value = cfg.dm_dsc_node2_user || '';
+            document.getElementById('dmDscNode2Pass').value = cfg.dm_dsc_node2_pass || '';
+            document.getElementById('dmDscSvc').value = cfg.dm_dsc_service_name || 'DSC_SERVICE';
+        } else {
+            document.getElementById('dmUser').value = cfg.dm_user || 'SYSDBA';
+            document.getElementById('dmPass').value = cfg.dm_pass || '';
+            document.getElementById('dmPrimHost').value = cfg.dm_primary_host || '';
+            document.getElementById('dmPrimPort').value = cfg.dm_primary_port || 5236;
+            document.getElementById('dmPrimSid').value = cfg.dm_primary_sid || '';
+            document.getElementById('dmStbyHost').value = cfg.dm_standby_host || '';
+            document.getElementById('dmStbyPort').value = cfg.dm_standby_port || 5236;
+            document.getElementById('dmStbySid').value = cfg.dm_standby_sid || '';
+            document.getElementById('dmStbyUser').value = cfg.dm_standby_user || '';
+            document.getElementById('dmStbyPass').value = cfg.dm_standby_pass || '';
+        }
+    }
+    // 金仓
+    if (cfg.db_type === 'kingbase') {
+        const kbSub = (cfg.kingbase_subtype || 'standby');
+        document.getElementById('kbSubtype').value = kbSub;
+        kbSwitchSub(kbSub);
+        if (kbSub === 'kdc') {
+            document.getElementById('kbKdcUser').value = cfg.kb_kdc_user || 'SYSTEM';
+            document.getElementById('kbKdcPass').value = cfg.kb_kdc_pass || '';
+            document.getElementById('kbKdcNode1Host').value = cfg.kb_kdc_node1_host || '';
+            document.getElementById('kbKdcNode1Port').value = cfg.kb_kdc_node1_port || 54321;
+            document.getElementById('kbKdcNode2Host').value = cfg.kb_kdc_node2_host || '';
+            document.getElementById('kbKdcNode2Port').value = cfg.kb_kdc_node2_port || 54321;
+            document.getElementById('kbKdcNode2User').value = cfg.kb_kdc_node2_user || '';
+            document.getElementById('kbKdcNode2Pass').value = cfg.kb_kdc_node2_pass || '';
+            document.getElementById('kbKdcSvc').value = cfg.kb_kdc_service_name || 'KDC_SERVICE';
+        } else {
+            document.getElementById('kbUser').value = cfg.kb_user || 'SYSTEM';
+            document.getElementById('kbPass').value = cfg.kb_pass || '';
+            document.getElementById('kbPrimHost').value = cfg.kb_primary_host || '';
+            document.getElementById('kbPrimPort').value = cfg.kb_primary_port || 54321;
+            document.getElementById('kbStbyHost').value = cfg.kb_standby_host || '';
+            document.getElementById('kbStbyPort').value = cfg.kb_standby_port || 54321;
+            document.getElementById('kbStbyUser').value = cfg.kb_standby_user || '';
+            document.getElementById('kbStbyPass').value = cfg.kb_standby_pass || '';
+        }
+    }
+    // openGauss
+    if (cfg.db_type === 'opengauss') {
+        document.getElementById('ogSubtype').value = cfg.opengauss_subtype || 'standby';
+        document.getElementById('ogPrimaryHost').value = cfg.og_primary_host || '';
+        document.getElementById('ogPrimaryPort').value = cfg.og_primary_port || 5432;
+        document.getElementById('ogUser').value = cfg.og_user || 'gaussdb';
+        document.getElementById('ogPass').value = cfg.og_pass || '';
+        document.getElementById('ogStandbyHost').value = cfg.og_standby_host || '';
+        document.getElementById('ogStandbyPort').value = cfg.og_standby_port || 5432;
+        document.getElementById('ogStandbyUser').value = cfg.og_standby_user || '';
+        document.getElementById('ogStandbyPass').value = cfg.og_standby_pass || '';
+        document.getElementById('ogDbName').value = cfg.og_db_name || 'postgres';
+        if ((cfg.opengauss_subtype || 'standby') === 'cluster') {
+            document.getElementById('ogClusterNode1Host').value = cfg.og_cluster_node1_host || '';
+            document.getElementById('ogClusterNode1Port').value = cfg.og_cluster_node1_port || 5432;
+            document.getElementById('ogClusterNode2Host').value = cfg.og_cluster_node2_host || '';
+            document.getElementById('ogClusterNode2Port').value = cfg.og_cluster_node2_port || 5432;
+        }
+    }
+    // OceanBase
+    if (cfg.db_type === 'oceanbase') {
+        document.getElementById('obSubtype').value = cfg.oceanbase_subtype || 'standby';
+        document.getElementById('obPrimaryHost').value = cfg.ob_primary_host || '';
+        document.getElementById('obPrimaryPort').value = cfg.ob_primary_port || 2881;
+        document.getElementById('obUser').value = cfg.ob_user || 'root';
+        document.getElementById('obPass').value = cfg.ob_pass || '';
+        document.getElementById('obStandbyHost').value = cfg.ob_standby_host || '';
+        document.getElementById('obStandbyPort').value = cfg.ob_standby_port || 2881;
+        document.getElementById('obStandbyUser').value = cfg.ob_standby_user || '';
+        document.getElementById('obStandbyPass').value = cfg.ob_standby_pass || '';
+        document.getElementById('obTenantName').value = cfg.ob_tenant_name || '';
+    }
+    // TiDB
+    if (cfg.db_type === 'tidb') {
+        document.getElementById('tidbSubtype').value = cfg.tidb_subtype || 'standby';
+        document.getElementById('tidbPrimaryHost').value = cfg.tidb_primary_host || '';
+        document.getElementById('tidbPrimaryPort').value = cfg.tidb_primary_port || 4000;
+        document.getElementById('tidbUser').value = cfg.tidb_user || 'root';
+        document.getElementById('tidbPass').value = cfg.tidb_pass || '';
+        document.getElementById('tidbStandbyHost').value = cfg.tidb_standby_host || '';
+        document.getElementById('tidbStandbyPort').value = cfg.tidb_standby_port || 4000;
+        document.getElementById('tidbStandbyUser').value = cfg.tidb_standby_user || '';
+        document.getElementById('tidbStandbyPass').value = cfg.tidb_standby_pass || '';
+        document.getElementById('tidbDbName').value = cfg.tidb_db_name || 'test';
+        document.getElementById('tidbPdPort').value = cfg.tidb_pd_port || 2379;
+    }
+    // MongoDB
+    if (cfg.db_type === 'mongodb') {
+        document.getElementById('mongoSubtype').value = cfg.mongodb_subtype || 'replica';
+        document.getElementById('mongoPrimaryHost').value = cfg.mongo_primary_host || '';
+        document.getElementById('mongoPrimaryPort').value = cfg.mongo_primary_port || 27017;
+        document.getElementById('mongoUser').value = cfg.mongo_user || '';
+        document.getElementById('mongoPass').value = cfg.mongo_pass || '';
+        document.getElementById('mongoStandbyHost').value = cfg.mongo_standby_host || '';
+        document.getElementById('mongoStandbyPort').value = cfg.mongo_standby_port || 27017;
+        document.getElementById('mongoReplsetName').value = cfg.mongo_replset_name || 'rs0';
+        document.getElementById('mongoAuthDb').value = cfg.mongo_auth_db || 'admin';
+    }
+    // 瀚高
+    if (cfg.db_type === 'highgo') {
+        document.getElementById('hgPrimaryHost').value = cfg.hg_primary_host || '';
+        document.getElementById('hgPrimaryPort').value = cfg.hg_primary_port || 5866;
+        document.getElementById('hgUser').value = cfg.hg_user || 'highgo';
+        document.getElementById('hgPass').value = cfg.hg_pass || '';
+        document.getElementById('hgStandbyHost').value = cfg.hg_standby_host || '';
+        document.getElementById('hgStandbyPort').value = cfg.hg_standby_port || 5866;
+        document.getElementById('hgStandbyUser').value = cfg.hg_standby_user || '';
+        document.getElementById('hgStandbyPass').value = cfg.hg_standby_pass || '';
+        document.getElementById('hgDbName').value = cfg.hg_db_name || 'highgo';
+    }
+
+    document.getElementById('configModal').classList.add('show');
+}
+
+async function saveConfig() {
+    const fd = new FormData(document.getElementById('configForm'));
+    const data = Object.fromEntries(fd.entries());
+    data.db_type = currentDbType;
+    ['force_switchover','auto_rollback','skip_delay_check','skip_consistency_check'].forEach(k => {
+        data[k] = fd.has(k);
+    });
+    data.max_delay = parseInt(data.max_delay) || 60;
+    data.wait_timeout = parseInt(data.wait_timeout) || 300;
+    if (currentDbType === 'mysql') {
+        data.master_port = parseInt(data.master_port) || 3306;
+        data.slave_port = parseInt(data.slave_port) || 3306;
+    } else if (currentDbType === 'oracle') {
+        data.oracle_primary_port = parseInt(data.oracle_primary_port) || 1521;
+        data.oracle_standby_port = parseInt(data.oracle_standby_port) || 1521;
+    } else if (currentDbType === 'postgresql') {
+        data.pg_primary_port = parseInt(data.pg_primary_port) || 5432;
+        data.pg_standby_port = parseInt(data.pg_standby_port) || 5432;
+    } else if (currentDbType === 'redis') {
+        data.redis_master_port = parseInt(data.redis_master_port) || 6379;
+        data.redis_slave_port = parseInt(data.redis_slave_port) || 6379;
+    } else if (currentDbType === 'dameng') {
+        data.dm_primary_port = parseInt(data.dm_primary_port) || 5236;
+        data.dm_standby_port = parseInt(data.dm_standby_port) || 5236;
+        data.dm_dsc_node1_port = parseInt(data.dm_dsc_node1_port) || 5236;
+        data.dm_dsc_node2_port = parseInt(data.dm_dsc_node2_port) || 5236;
+    } else if (currentDbType === 'kingbase') {
+        data.kb_primary_port = parseInt(data.kb_primary_port) || 54321;
+        data.kb_standby_port = parseInt(data.kb_standby_port) || 54321;
+        data.kb_kdc_node1_port = parseInt(data.kb_kdc_node1_port) || 54321;
+        data.kb_kdc_node2_port = parseInt(data.kb_kdc_node2_port) || 54321;
+    } else if (currentDbType === 'opengauss') {
+        data.opengauss_subtype = data.opengauss_subtype || 'standby';
+        data.og_primary_port = parseInt(data.og_primary_port) || 5432;
+        data.og_standby_port = parseInt(data.og_standby_port) || 5432;
+    } else if (currentDbType === 'oceanbase') {
+        data.oceanbase_subtype = data.oceanbase_subtype || 'standby';
+        data.ob_primary_port = parseInt(data.ob_primary_port) || 2881;
+        data.ob_standby_port = parseInt(data.ob_standby_port) || 2881;
+    } else if (currentDbType === 'tidb') {
+        data.tidb_subtype = data.tidb_subtype || 'standby';
+        data.tidb_primary_port = parseInt(data.tidb_primary_port) || 4000;
+        data.tidb_standby_port = parseInt(data.tidb_standby_port) || 4000;
+        data.tidb_pd_port = parseInt(data.tidb_pd_port) || 2379;
+    } else if (currentDbType === 'mongodb') {
+        data.mongodb_subtype = data.mongodb_subtype || 'replica';
+        data.mongo_primary_port = parseInt(data.mongo_primary_port) || 27017;
+        data.mongo_standby_port = parseInt(data.mongo_standby_port) || 27017;
+    } else if (currentDbType === 'highgo') {
+        data.hg_primary_port = parseInt(data.hg_primary_port) || 5866;
+        data.hg_standby_port = parseInt(data.hg_standby_port) || 5866;
+    } else if (currentDbType === 'middleware') {
+        data.middleware_type = document.getElementById('mwType').value;
+        data.mw_subtype = document.getElementById('mwSubtype').value;
+        data.mw_primary_port = parseInt(data.mw_primary_port) || 80;
+        data.mw_secondary_port = parseInt(data.mw_secondary_port) || 80;
+        data.mw_cluster_node1_port = parseInt(data.mw_cluster_node1_port) || 80;
+        data.mw_cluster_node2_port = parseInt(data.mw_cluster_node2_port) || 80;
+        data.mw_cluster_node3_port = parseInt(data.mw_cluster_node3_port) || 80;
+        data.mw_api_port = parseInt(data.mw_api_port) || 0;
+    }
+
+    const url = editingId ? `/api/configs/${editingId}` : '/api/configs';
+    const method = editingId ? 'PUT' : 'POST';
+    const resp = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    const result = await resp.json();
+    if (result.ok) { closeModal(); window.location.reload(); }
+    else { alert('保存失败: ' + (result.error || '未知错误')); }
+}
+
+async function deleteConfig(id) {
+    if (!confirm('确定删除此配置？')) return;
+    const resp = await fetch(`/api/configs/${id}`, { method: 'DELETE' });
+    const result = await resp.json();
+    if (result.ok) window.location.reload();
+    else alert('删除失败');
+}
+
+async function testConn(dbType, role) {
+    let url='/api/db/test-connection', payload={db_type: dbType};
+    // MySQL
+    if (dbType==='mysql') {
+        if (role==='master') {
+            payload={db_type:'mysql', host:document.getElementById('masterHost').value,port:parseInt(document.getElementById('masterPort').value)||3306,
+                user:document.getElementById('mysqlUser').value||'root',password:document.getElementById('mysqlPass').value};
+        } else {
+            payload={db_type:'mysql', host:document.getElementById('slaveHost').value,port:parseInt(document.getElementById('slavePort').value)||3306,
+                user:document.getElementById('mysqlSlaveUser').value||document.getElementById('mysqlUser').value||'root',
+                password:document.getElementById('mysqlSlavePass').value||document.getElementById('mysqlPass').value};
+        }
+    }
+    // Oracle ADG
+    else if (dbType==='oracle') {
+        if (role==='primary') {
+            payload={db_type:'oracle', host:document.getElementById('oraPrimHost').value,port:parseInt(document.getElementById('oraPrimPort').value)||1521,
+                sid:document.getElementById('oraPrimSid').value,user:document.getElementById('oraUser').value||'sys',
+                password:document.getElementById('oraPass').value,mode:document.getElementById('oraMode').value||'SYSDBA'};
+        } else {
+            payload={db_type:'oracle', host:document.getElementById('oraStbyHost').value,port:parseInt(document.getElementById('oraStbyPort').value)||1521,
+                sid:document.getElementById('oraStbySid').value,
+                user:document.getElementById('oraStbyUser').value||document.getElementById('oraUser').value||'sys',
+                password:document.getElementById('oraStbyPass').value||document.getElementById('oraPass').value,
+                mode:document.getElementById('oraMode').value||'SYSDBA'};
+        }
+    }
+    // PostgreSQL
+    else if (dbType==='pg') {
+        payload.db_type='postgresql';
+        if (role==='primary') {
+            payload={db_type:'postgresql', host:document.getElementById('pgPrimHost').value,port:parseInt(document.getElementById('pgPrimPort').value)||5432,
+                user:document.getElementById('pgUser').value||'postgres',password:document.getElementById('pgPass').value};
+        } else {
+            payload={db_type:'postgresql', host:document.getElementById('pgStbyHost').value,port:parseInt(document.getElementById('pgStbyPort').value)||5432,
+                user:document.getElementById('pgStbyUser').value||document.getElementById('pgUser').value||'postgres',
+                password:document.getElementById('pgStbyPass').value||document.getElementById('pgPass').value};
+        }
+    }
+    // Redis 主从
+    else if (dbType==='redis') {
+        if (role==='master') {
+            payload={db_type:'redis', host:document.getElementById('redisMasterHost').value,port:parseInt(document.getElementById('redisMasterPort').value)||6379,
+                user:document.getElementById('redisMasterUser').value,password:document.getElementById('redisMasterPass').value};
+        } else {
+            payload={db_type:'redis', host:document.getElementById('redisSlaveHost').value,port:parseInt(document.getElementById('redisSlavePort').value)||6379,
+                user:document.getElementById('redisSlaveUser').value||document.getElementById('redisMasterUser').value,
+                password:document.getElementById('redisSlavePass').value||document.getElementById('redisMasterPass').value};
+        }
+    }
+    // RAC (节点1复用 oracle_user/oracle_pass，节点2 独立账号)
+    else if (dbType==='rac') {
+        if (role==='node1') {
+            payload={db_type:'rac', host:document.getElementById('racNode1Host').value,sid:document.getElementById('racNode1Sid').value,
+                user:document.getElementById('oraUser').value||'oracle',password:document.getElementById('oraPass').value};
+        } else {
+            payload={db_type:'rac', host:document.getElementById('racNode2Host').value,sid:document.getElementById('racNode2Sid').value,
+                user:document.getElementById('racNode2User').value||document.getElementById('oraUser').value||'oracle',
+                password:document.getElementById('racNode2Pass').value||document.getElementById('oraPass').value};
+        }
+    }
+    // 达梦
+    else if (dbType==='dm') {
+        if (role==='primary') {
+            payload={db_type:'dameng', host:document.getElementById('dmPrimHost').value,port:parseInt(document.getElementById('dmPrimPort').value)||5236,
+                user:document.getElementById('dmUser').value||'SYSDBA',password:document.getElementById('dmPass').value,sid:document.getElementById('dmPrimSid').value,subtype:'standby'};
+        } else if (role==='standby') {
+            payload={db_type:'dameng', host:document.getElementById('dmStbyHost').value,port:parseInt(document.getElementById('dmStbyPort').value)||5236,
+                user:document.getElementById('dmStbyUser').value||document.getElementById('dmUser').value||'SYSDBA',
+                password:document.getElementById('dmStbyPass').value||document.getElementById('dmPass').value,sid:document.getElementById('dmStbySid').value,subtype:'standby'};
+        } else if (role==='dsc-node1') {
+            payload={db_type:'dameng', host:document.getElementById('dmDscNode1Host').value,port:parseInt(document.getElementById('dmDscNode1Port').value)||5236,
+                user:document.getElementById('dmDscUser').value||'SYSDBA',password:document.getElementById('dmDscPass').value,subtype:'dsc'};
+        } else if (role==='dsc-node2') {
+            payload={db_type:'dameng', host:document.getElementById('dmDscNode2Host').value,port:parseInt(document.getElementById('dmDscNode2Port').value)||5236,
+                user:document.getElementById('dmDscNode2User').value||document.getElementById('dmDscUser').value||'SYSDBA',
+                password:document.getElementById('dmDscNode2Pass').value||document.getElementById('dmDscPass').value,subtype:'dsc'};
+        }
+    }
+    // 金仓
+    else if (dbType==='kb') {
+        if (role==='primary') {
+            payload={db_type:'kingbase', host:document.getElementById('kbPrimHost').value,port:parseInt(document.getElementById('kbPrimPort').value)||54321,
+                user:document.getElementById('kbUser').value||'SYSTEM',password:document.getElementById('kbPass').value,subtype:'standby'};
+        } else if (role==='standby') {
+            payload={db_type:'kingbase', host:document.getElementById('kbStbyHost').value,port:parseInt(document.getElementById('kbStbyPort').value)||54321,
+                user:document.getElementById('kbStbyUser').value||document.getElementById('kbUser').value||'SYSTEM',
+                password:document.getElementById('kbStbyPass').value||document.getElementById('kbPass').value,subtype:'standby'};
+        } else if (role==='kdc-node1') {
+            payload={db_type:'kingbase', host:document.getElementById('kbKdcNode1Host').value,port:parseInt(document.getElementById('kbKdcNode1Port').value)||54321,
+                user:document.getElementById('kbKdcUser').value||'SYSTEM',password:document.getElementById('kbKdcPass').value,subtype:'kdc'};
+        } else if (role==='kdc-node2') {
+            payload={db_type:'kingbase', host:document.getElementById('kbKdcNode2Host').value,port:parseInt(document.getElementById('kbKdcNode2Port').value)||54321,
+                user:document.getElementById('kbKdcNode2User').value||document.getElementById('kbKdcUser').value||'SYSTEM',
+                password:document.getElementById('kbKdcNode2Pass').value||document.getElementById('kbKdcPass').value,subtype:'kdc'};
+        }
+    }
+    // 新数据库类型使用通用测试连接API
+    else if (['opengauss','oceanbase','tidb','mongodb','highgo'].includes(dbType)) {
+        payload.db_type = dbType;
+        if (dbType === 'opengauss') {
+            payload.og_user = document.getElementById('ogUser').value || 'gaussdb';
+            payload.og_pass = document.getElementById('ogPass').value || '';
+            payload.og_db_name = document.getElementById('ogDbName').value || 'postgres';
+            if (role === 'primary' || role === 'standby') {
+                const prefix = role === 'primary' ? 'Primary' : 'Standby';
+                payload.og_primary_host = document.getElementById('og'+prefix+'Host').value;
+                payload.og_primary_port = parseInt(document.getElementById('og'+prefix+'Port').value) || 5432;
+            }
+        } else if (dbType === 'oceanbase') {
+            payload.ob_user = document.getElementById('obUser').value || 'root';
+            payload.ob_pass = document.getElementById('obPass').value || '';
+            if (role === 'primary' || role === 'standby') {
+                const prefix = role === 'primary' ? 'Primary' : 'Standby';
+                payload.ob_primary_host = document.getElementById('ob'+prefix+'Host').value;
+                payload.ob_primary_port = parseInt(document.getElementById('ob'+prefix+'Port').value) || 2881;
+            }
+        } else if (dbType === 'tidb') {
+            payload.tidb_user = document.getElementById('tidbUser').value || 'root';
+            payload.tidb_pass = document.getElementById('tidbPass').value || '';
+            if (role === 'primary' || role === 'standby') {
+                const prefix = role === 'primary' ? 'Primary' : 'Standby';
+                payload.tidb_primary_host = document.getElementById('tidb'+prefix+'Host').value;
+                payload.tidb_primary_port = parseInt(document.getElementById('tidb'+prefix+'Port').value) || 4000;
+            }
+        } else if (dbType === 'mongodb') {
+            payload.mongo_user = document.getElementById('mongoUser').value || '';
+            payload.mongo_pass = document.getElementById('mongoPass').value || '';
+            payload.mongo_replset_name = document.getElementById('mongoReplsetName').value || 'rs0';
+            payload.mongo_auth_db = document.getElementById('mongoAuthDb').value || 'admin';
+            if (role === 'primary' || role === 'standby') {
+                const prefix = role === 'primary' ? 'Primary' : 'Standby';
+                payload.mongo_primary_host = document.getElementById('mongo'+prefix+'Host').value;
+                payload.mongo_primary_port = parseInt(document.getElementById('mongo'+prefix+'Port').value) || 27017;
+            }
+        } else if (dbType === 'highgo') {
+            payload.hg_user = document.getElementById('hgUser').value || 'highgo';
+            payload.hg_pass = document.getElementById('hgPass').value || '';
+            payload.hg_db_name = document.getElementById('hgDbName').value || 'highgo';
+            if (role === 'primary' || role === 'standby') {
+                const prefix = role === 'primary' ? 'Primary' : 'Standby';
+                payload.hg_primary_host = document.getElementById('hg'+prefix+'Host').value;
+                payload.hg_primary_port = parseInt(document.getElementById('hg'+prefix+'Port').value) || 5866;
+            }
+        }
+    }
+    // 中间件
+    else if (dbType === 'middleware') {
+        payload.db_type = 'middleware';
+        payload.middleware_type = document.getElementById('mwType').value;
+        payload.mw_primary_host = document.getElementById('mwPrimaryHost').value;
+        payload.mw_primary_port = parseInt(document.getElementById('mwPrimaryPort').value) || 80;
+        payload.mw_api_port = parseInt(document.getElementById('mwApiPort').value) || 0;
+    }
+
+    try {
+        if(r.ok){
+            let info='✓ 连接成功\n';
+            if(r.host)info+=`主机: ${r.host}\n`;
+            if(r.version)info+=`版本: ${r.version}\n`;
+            if(r.role)info+=`角色: ${r.role}\n`;
+            if(r.database_role)info+=`角色: ${r.database_role}\n`;
+            if(r.switchover_status)info+=`切换状态: ${r.switchover_status}\n`;
+            if(r.open_mode)info+=`模式: ${r.open_mode}\n`;
+            if(r.db_unique_name)info+=`唯一名: ${r.db_unique_name}\n`;
+            if(r.master)info+=`主节点: ${r.master.host}:${r.master.port}\n`;
+            if(r.slave_count!==undefined)info+=`从节点数: ${r.slave_count}\n`;
+            if(r.instance_name)info+=`实例: ${r.instance_name} (${r.host_name})\n`;
+            alert(info);
+        } else {
+            alert('✗ 连接失败: '+(r.error||'未知错误'));
+        }
+    } catch(e){alert('请求失败: '+e.message);}
+}
+
+function dmSwitchSub(sub) {
+    document.getElementById('dmSubtype').value = sub;
+    document.querySelectorAll('[name="dm_subtype_radio"]').forEach(r => r.checked = (r.value === sub));
+    document.getElementById('dmStandbySub').style.display = (sub === 'standby') ? '' : 'none';
+    document.getElementById('dmDscSub').style.display = (sub === 'dsc') ? '' : 'none';
+    document.getElementById('maxDelay').parentElement.style.display = (sub === 'dsc') ? 'none' : '';
+}
+
+function kbSwitchSub(sub) {
+    document.getElementById('kbSubtype').value = sub;
+    document.querySelectorAll('[name="kb_subtype_radio"]').forEach(r => r.checked = (r.value === sub));
+    document.getElementById('kbStandbySub').style.display = (sub === 'standby') ? '' : 'none';
+    document.getElementById('kbKdcSub').style.display = (sub === 'kdc') ? '' : 'none';
+    document.getElementById('maxDelay').parentElement.style.display = (sub === 'kdc') ? 'none' : '';
+}
+
+async function checkDmStatus(id) {
+    try {
+        const r=await fetch('/api/db/status/'+id).then(r=>r.json());
+        let info='达梦状态\n';
+        if(r.primary){info+=`主库: ${r.primary.message||r.primary.host||''}\n`;}
+        if(r.standby){info+=`备库: ${r.standby.message||r.standby.host||''}\n`;}
+        if(r.node1){info+=`节点1: ${r.node1.message||r.node1.host||''}\n`;}
+        if(r.node2){info+=`节点2: ${r.node2.message||r.node2.host||''}\n`;}
+        if(r.summary)info+=`状态: ${r.summary}\n`;
+        alert(info);
+    }catch(e){alert('请求失败: '+e.message);}
+}
+async function checkKbStatus(id) {
+    try {
+        const r=await fetch('/api/db/status/'+id).then(r=>r.json());
+        let info='金仓状态\n';
+        if(r.primary){info+=`主库: ${r.primary.message||r.primary.host||''}\n`;}
+        if(r.standby){info+=`备库: ${r.standby.message||r.standby.host||''}\n`;}
+        if(r.node1){info+=`节点1: ${r.node1.message||r.node1.host||''}\n`;}
+        if(r.node2){info+=`节点2: ${r.node2.message||r.node2.host||''}\n`;}
+        if(r.summary)info+=`状态: ${r.summary}\n`;
+        alert(info);
+    }catch(e){alert('请求失败: '+e.message);}
+}
+
+async function checkPgStatus(id) {
+    try {
+        const r=await fetch('/api/db/status/'+id).then(r=>r.json());
+        let info='';
+        ['primary','standby'].forEach(role=>{
+            const s=r[role];
+            info+=`--- ${role.toUpperCase()} ---\n`;
+            if(s&&s.ok){info+=`角色: ${s.role}\n版本: ${s.version||''}\n`;}
+            else{info+=`错误: ${(s&&s.error)||'unknown'}\n`;}
+            info+='\n';
+        });
+        if(r.summary)info+=`汇总: ${r.summary}\n`;
+        alert(info);
+    }catch(e){alert('请求失败: '+e.message);}
+}
+async function checkRedisStatus(id) {
+    try {
+        const r=await fetch('/api/db/status/'+id).then(r=>r.json());
+        if(r.ok){
+            const m = r.master || r.primary || {};
+            const s = r.slave || r.standby || {};
+            let info=`主节点: ${m.host||''}:${m.port||''} (role=${m.role||'?'})\n`;
+            if(m.connected_replicas!==undefined) info+='已连接从数: '+m.connected_replicas+'\n';
+            info+=`从节点: ${s.host||''}:${s.port||''} (role=${s.role||'?'})\n`;
+            if(s.master_host) info+='当前复制主: '+s.master_host+':'+(s.master_port||'')+'\n';
+            if(s.lag_seconds!==undefined) info+='延迟: '+s.lag_seconds+'s\n';
+            alert(info);
+        } else {alert('错误: '+(r.error||'unknown'));}
+    }catch(e){alert('请求失败: '+e.message);}
+}
+async function checkReplStatus(id) {
+    try{
+        // 统一状态契约：r.healthy 为后端整合判定（复制线程 IO/SQL 必须 Yes），standby 带 io/sql/lag 明细
+        const r=await fetch('/api/db/status/'+id).then(r=>r.json());
+        const st=(r.standby||{});
+        if(!r.healthy && !st.io_running && !st.error){alert('未获取到复制明细');return;}
+        if(st.error && !st.io_running){alert('复制状态异常: '+st.error);return;}
+        if(r.error){alert('状态查询失败: '+r.error);return;}
+        if(r.healthy === false){alert('复制状态异常\n'+(r.summary||''));return;}
+        alert(`复制状态正常\nIO: ${st.io_running}\nSQL: ${st.sql_running}\n延迟: ${st.lag_seconds}s`);
+    }catch(e){alert('请求失败: '+e.message);}
+}
+async function repairReplication(dbType, id) {
+    const typeLabel = {mysql:'MySQL',postgresql:'PostgreSQL',oracle:'Oracle',redis:'Redis',dameng:'达梦',kingbase:'金仓',opengauss:'openGauss',oceanbase:'OceanBase',tidb:'TiDB',mongodb:'MongoDB',highgo:'瀚高',middleware:'中间件'}[dbType]||dbType;
+    if(!confirm(`将执行 ${typeLabel} 复制/服务一键修复：\n1) 诊断主备角色（方向校验）\n2) 检查复制/同步状态\n3) 修复复制通道/账号/日志应用\n4) 差异分析\n\n确定继续？`))return;
+    const btn=event.target.closest('button');
+    const old=btn.innerHTML;
+    btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>';
+    btn.disabled=true;
+    try{
+        const r=await fetch(`/api/db/repair/`+id,{
+            method:'POST',headers:{'Content-Type':'application/json'},body:'{}'
+        }).then(r=>r.json());
+        if(!r.ok){alert('修复失败: '+(r.error||r.logs?.map(l=>l.msg).join('\\n')||'unknown'));return;}
+        // 渲染日志
+        let info='===== 复制修复报告 =====\\n';
+        (r.logs||[]).forEach(l=>{
+            const icon={info:'ℹ',warning:'⚠',error:'✗',success:'✓'}[l.level]||'·';
+            info+=icon+' '+l.msg+'\\n';
+        });
+        info+='\\n===== 结果 =====\\n';
+        info+='方向校验: '+((r.direction_mismatch)?'✗ 配置方向与物理拓扑不一致':'✓ 通过')+'\\n';
+        info+='执行修复: '+(r.repaired?'是':'否（未发现需修复项）')+'\\n';
+        const d=r.details||{};
+        if(d.M_only!==undefined)info+='GTID差异: M_only='+d.M_only+' S_only='+d.S_only;
+        else if(d.lsn_lag_bytes!==undefined)info+='LSN延迟: '+d.lsn_lag_bytes+' 字节';
+        else if(d.mrp_status)info+='MRP状态: '+d.mrp_status;
+        else if(d.master_link_status)info+='复制状态: '+d.master_link_status+' 延迟: '+(d.lag_seconds??0)+'s';
+        else if(d.members)info+='副本集成员: '+d.members.length+' 个';
+        else if(d.ticdc_running_tasks!==undefined)info+='TiCDC任务: '+d.ticdc_running_tasks+' 个';
+        else if(d.health_check_ok!==undefined)info+='健康检查: '+(d.health_check_ok?'通过':'异常');
+        else info+='详情: '+JSON.stringify(d);
+        alert(info);
+    }catch(e){alert('请求失败: '+e.message);}
+    finally{btn.innerHTML=old;btn.disabled=false;}
+}
+
+async function checkOracleStatus(id) {
+    try{
+        const r=await fetch('/api/db/status/'+id).then(r=>r.json());
+        let info='';
+        // 兼容 ADG (primary/standby) 和 RAC (node1/node2)
+        const roles = (r.node1!==undefined) ? ['node1','node2'] : ['primary','standby'];
+        roles.forEach(role=>{
+            const s=r[role];
+            info+=`--- ${role.toUpperCase()} ---\n`;
+            if(s&&s.ok){
+                if(s.database_role)info+=`角色: ${s.database_role}\n`;
+                if(s.switchover_status)info+=`切换状态: ${s.switchover_status}\n`;
+                if(s.open_mode)info+=`模式: ${s.open_mode}\n`;
+                if(s.protection_mode)info+=`保护: ${s.protection_mode}\n`;
+                if(s.instance_name)info+=`实例: ${s.instance_name}\n`;
+                if(s.db_unique_name)info+=`DB: ${s.db_unique_name}\n`;
+            }else{info+=`错误: ${(s&&s.error)||'unknown'}\n`;}
+            info+='\n';
+        });
+        if(r.summary)info+=`汇总: ${r.summary}\n`;
+        alert(info);
+    }catch(e){alert('请求失败: '+e.message);}
+}
+// ═══════════════ 拓扑图 & 下钻 ═══════════════
+let _topoCfgs = [];
+
+// 节点角色徽章
+function _roleBadge(role) {
+    if (role === 'primary') return '<span class="topology-node-pill pill-primary" style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:.62rem;background:rgba(74,111,165,.14);color:#3F5F91;font-weight:600">主</span>';
+    return '<span class="topology-node-pill pill-secondary" style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:.62rem;background:rgba(100,116,139,.14);color:#64748B;font-weight:600">备</span>';
+}
+
+// 类型图标/颜色
+function _dbMeta(dt, sub) {
+    const map = {
+        mysql: ['bi bi-database-fill-gear', '#3E8A99'],
+        oracle: ['bi bi-database-fill-lock', '#A9844A'],
+        postgresql: ['bi bi-server', '#4A6FA5'],
+        redis: ['bi bi-lightning-fill', '#D97706'],
+        dameng: ['bi bi-diagram-3', '#B4626E'],
+        kingbase: ['bi bi-shield-lock', '#0369A1'],
+        opengauss: ['bi bi-hdd-network', '#6D28D8'],
+        oceanbase: ['bi bi-cloud-arrow-up', '#B45309'],
+        tidb: ['bi bi-distribute-vertical', '#BE185D'],
+        mongodb: ['bi bi-database', '#047857'],
+        highgo: ['bi bi-hdd-stack', '#0369A1'],
+        middleware: ['bi bi-hdd-rack-fill', '#374151'],
+    };
+    return map[dt] || ['bi bi-database', '#64748B'];
+}
+
+// 渲染节点（带下钻点击）
+function _topoNodeHTML(n, meta) {
+    const [icon, color] = meta;
+    const pill = _roleBadge(n.role);
+    const p = n.port ? `:${n.port}` : '';
+    const roleText = n.role === 'primary' ? 'PRIMARY' : 'STANDBY';
+    return `<div class="topology-node ${n.role} topo-drill-node" style="cursor:pointer" onclick="event.stopPropagation();showNodeDrill(${JSON.stringify(n).replace(/"/g, '&quot;')})" title="点击查看该节点详细配置参数">
+        <i class="${icon}" style="color:${color}"></i>
+        <div class="label"><span class="role-dot"></span>${n.label}</div>
+        <div class="host">${n.host}${p}</div>
+        <div class="topo-role-row"><span class="topo-role-badge" style="background:${n.role === 'primary' ? 'rgba(74,111,165,.15)' : 'rgba(100,116,139,.13)'};color:${n.role === 'primary' ? '#3F5F91' : '#64748B'}">${roleText}</span></div>
+        <div class="topo-drill-hint"><i class="bi bi-search"></i> 点击下钻</div>
+    </div>`;
+}
+
+// 连接箭头
+function _topoLinkHTML(link, meta) {
+    const [, color] = meta;
+    return `<div class="topology-arrow">
+        <i class="bi bi-arrow-left-right" style="color:${color}"></i>
+        <div class="topology-flow-line"></div>
+        <small>${link.label}</small>
+    </div>`;
+}
+
+// 拉取所有配置并渲染总览
+async function renderTopoOverview() {
+    let cfgs = [];
+    try {
+        cfgs = await fetch('/api/configs').then(r => r.json());
+    } catch (e) { return; }
+    _topoCfgs = cfgs;
+    const wrap = document.getElementById('topoOverview');
+    const empty = document.getElementById('topoOverviewEmpty');
+    if (!cfgs.length) {
+        wrap.style.display = 'none';
+        empty.style.display = '';
+        return;
+    }
+    wrap.style.display = '';
+    empty.style.display = 'none';
+    let html = '';
+    for (const c of cfgs) {
+        const dt = c.db_type;
+        let sub = '';
+        if (dt === 'mysql') sub = c.mysql_subtype || 'replica';
+        else if (dt === 'oracle') sub = c.oracle_subtype || 'adg';
+        else if (dt === 'dameng') sub = c.dameng_subtype || 'standby';
+        else if (dt === 'kingbase') sub = c.kingbase_subtype || 'standby';
+        else if (dt === 'opengauss') sub = c.opengauss_subtype || 'standby';
+        else if (dt === 'oceanbase') sub = c.oceanbase_subtype || 'standby';
+        else if (dt === 'tidb') sub = c.tidb_subtype || 'standby';
+        else if (dt === 'mongodb') sub = c.mongodb_subtype || 'replica';
+        else if (dt === 'middleware') sub = c.mw_subtype || 'active_standby';
+        const meta = _dbMeta(dt, sub);
+        // fetch topology detail for this config
+        let topo = null;
+        try { topo = await fetch(`/api/configs/${c.id}/topology`).then(r => r.json()); } catch (e) {}
+        const nodes = (topo && topo.nodes) ? topo.nodes : [];
+        const links = (topo && topo.links) ? topo.links : [];
+        if (!nodes.length) continue;
+        // 主备/集群使用箭头连接
+        let topoInner = '';
+        nodes.forEach((n, i) => {
+            if (i > 0 && links[i - 1]) topoInner += _topoLinkHTML(links[i - 1], meta);
+            topoInner += _topoNodeHTML(n, meta);
+        });
+        const label = c.name || (dt + ' 配置');
+        const dbTypeLabel = (topo.config && topo.config.db_type) || dt;
+        html += `<div class="card topo-cfg-card" style="border:1px solid var(--slate-200);border-left:4px solid ${meta[1]};border-radius:var(--radius);padding:var(--space-3) var(--space-4);cursor:pointer;transition:box-shadow .2s,transform .15s" onclick="showCfgTopology(${c.id})" title="点击查看该配置的完整拓扑与参数">
+            <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-3);flex-wrap:wrap">
+                <span style="width:34px;height:34px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:${meta[1]}14"><i class="${meta[0]}" style="color:${meta[1]};font-size:1.05rem"></i></span>
+                <strong style="flex:1;font-size:.95rem">${label}</strong>
+                <span class="badge" style="background:rgba(74,111,165,.1);color:#3F5F91;font-size:.6rem">${dbTypeLabel}</span>
+                <span class="badge" style="background:rgba(16,185,129,.1);color:#0E9F6E;font-size:.6rem"><i class="bi bi-arrow-down-up me-1"></i>${sub}</span>
+            </div>
+            <div class="topo-row-inline" style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;justify-content:center;padding:var(--space-2) 0">${topoInner}</div>
+            <div style="text-align:center;margin-top:var(--space-2);font-size:.66rem;color:var(--slate-400)"><i class="bi bi-box-arrow-down-right me-1"></i>点击查看拓扑详情与全部配置参数</div>
+        </div>`;
+    }
+    wrap.innerHTML = html || '<div class="empty-state" style="padding:var(--space-4)"><i class="bi bi-diagram-3"></i><p>暂无可渲染拓扑的配置</p></div>';
+}
+
+// 打开单个配置的拓扑下钻 Modal
+async function showCfgTopology(id) {
+    let topo;
+    try {
+        topo = await fetch(`/api/configs/${id}/topology`).then(r => r.json());
+    } catch (e) {
+        alert('获取拓扑失败: ' + e.message);
+        return;
+    }
+    if (!topo.ok) { alert(topo.error || '无数据'); return; }
+    const name = (topo.config && topo.config.name) || ('配置 #' + id);
+    const dt = topo.config ? topo.config.db_type : '';
+    const meta = _dbMeta(dt);
+    let nodes = topo.nodes || [], links = topo.links || [];
+    // 调用方可能来自总览的点击
+    let body = '<div style="margin-bottom:var(--space-3)">';
+    body += `<h6 class="mb-1"><i class="${meta[0]}" style="color:${meta[1]}"></i> ${name}</h6>`;
+    body += `<div class="text-xs text-muted">${topo.config.description || '切换演练配置'}</div>`;
+    body += '</div>';
+    // 拓扑图
+    body += '<div class="topology-card" style="padding:var(--space-4);margin-bottom:var(--space-3)">';
+    body += '<div class="topology-card-header"><i class="bi bi-diagram-3"></i> 切换拓扑</div>';
+    body += '<div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;justify-content:center;padding:var(--space-3) 0">';
+    nodes.forEach((n, i) => {
+        if (i > 0 && links[i - 1]) body += _topoLinkHTML(links[i - 1], meta);
+        body += _topoNodeHTML(n, meta);
+    });
+    body += '</div></div>';
+    // 切换参数（全局）
+    body += '<div class="card" style="border:1px solid var(--slate-200)"><div class="card-body" style="padding:var(--space-3)">';
+    body += '<h6 class="mb-2" style="font-size:.8rem;color:var(--slate-600)"><i class="bi bi-sliders me-1"></i>切换参数</h6>';
+    body += '<table class="table table-sm" style="font-size:.72rem"><tbody>';
+    for (const [k, v] of Object.entries(topo.params || {})) {
+        body += `<tr><th style="color:var(--slate-500);font-weight:500;width:40%">${k}</th><td><code>${v}</code></td></tr>`;
+    }
+    body += '</tbody></table></div></div>';
+    document.getElementById('topoModalTitle').innerHTML = '<i class="bi bi-diagram-3 me-2" style="color:' + meta[1] + '"></i>拓扑详情';
+    document.getElementById('topoModalBody').innerHTML = body;
+    document.getElementById('topoModal').style.display = 'flex';
+}
+
+// 节点下钻：展示具体配置参数
+function showNodeDrill(n) {
+    let rows = '';
+    const params = n.params || {};
+    const fields = [['角色', n.role === 'primary' ? '主 / Primary' : '备 / Standby'],
+                    ['标签', n.label], ['主机', n.host], ['端口', n.port || '-']];
+    fields.concat(Object.entries(params)).forEach(([k, v]) => {
+        rows += `<tr><th style="color:var(--slate-500);font-weight:500;width:45%">${k}</th><td><code>${v !== undefined ? v : '-'}</code></td></tr>`;
+    });
+    const meta = _dbMeta(n.dt || n.db_type || '');
+    document.getElementById('topoModalTitle').innerHTML = '<i class="bi bi-box-arrow-down-right me-2" style="color:' + (meta ? meta[1] : 'var(--teal-600)') + '"></i>节点参数';
+    document.getElementById('topoModalBody').innerHTML = `
+        <div class="card" style="border:1px solid var(--slate-200)">
+            <div class="card-body">
+                <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3)">
+                    <div class="topology-node ${n.role}" style="flex:0 0 auto"><i class="bi bi-hdd-stack" style="color:var(--teal-600)"></i><div class="label"><span class="role-dot"></span>${n.label}</div><div class="host">${n.host}:${n.port || '-'}</div></div>
+                </div>
+                <table class="table table-sm" style="font-size:.75rem"><tbody>${rows}</tbody></table>
+                <div class="text-xs text-muted mt-2"><i class="bi bi-info-circle me-1"></i>以上参数来自配置项，点击右上角 × 关闭</div>
+            </div>
+        </div>`;
+    document.getElementById('topoModal').style.display = 'flex';
+}
+
+function closeTopoModal() {
+    document.getElementById('topoModal').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    renderTopoOverview();
+});
+document.getElementById('topoModal').addEventListener('click', function (e) {
+    if (e.target === this) closeTopoModal();
+});
+
+document.getElementById('configModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+</script>
+{% endblock %}

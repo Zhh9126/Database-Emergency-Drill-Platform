@@ -1,0 +1,23 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Logs and runtime output
+*.log
+*.err
+logs/
+instance/
+*.db
+*.bak
+
+# Editor / tool / workspace metadata
+.codebuddy/
+.opencode/
+.mobilework-sessions.json
+.mobilework-workspace
+2026-10-28-18-26-13/
+
+# OS files
+.DS_Store
+Thumbs.db

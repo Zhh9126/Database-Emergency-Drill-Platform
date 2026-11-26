@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}AI 模型配置 - 应急演练平台{% endblock %}
+{% block page_title %}AI 大模型配置{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div class="text-xs" style="color:var(--slate-500)">配置大模型 API，激活后 AI 助手可驱动切换演练</div>
+    <button class="btn btn-primary" onclick="showAddModal()"><i class="bi bi-plus-lg"></i> 添加模型</button>
+</div>
+
+{% if llm_configs %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(360px,1fr));gap:16px">
+{% for c in llm_configs %}
+<div class="card">
+    <div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+            <div>
+                <h5 style="margin:0;font-size:.95rem">
+                    {% if c.is_active %}<span class="badge badge-success" style="margin-right:6px">● 激活</span>{% endif %}
+                    {{ c.name }}
+                </h5>
+                <div class="text-xs" style="color:var(--slate-500)">{{ c.description or '' }}</div>
+            </div>
+            <span class="badge badge-teal">{{ providers[c.provider]['name'] if c.provider in providers else c.provider }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:.82rem;margin-bottom:12px">
+            <div><span style="color:var(--slate-500)">模型</span><br><strong>{{ c.model_name }}</strong></div>
+            <div><span style="color:var(--slate-500)">温度</span><br>{{ c.temperature }}</div>
+            <div><span style="color:var(--slate-500)">最大Token</span><br>{{ c.max_tokens }}</div>
+            <div><span style="color:var(--slate-500)">API地址</span><br><small class="font-mono">{{ c.api_base[:40] }}{% if c.api_base|length>40 %}...{% endif %}</small></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="editLLM({{ c.id }})"><i class="bi bi-pencil"></i> 编辑</button>
+            <button class="btn btn-outline btn-sm" onclick="testLLM({{ c.id }})"><i class="bi bi-plug"></i> 测试</button>
+            {% if not c.is_active %}
+            <button class="btn btn-outline-teal btn-sm" onclick="activateLLM({{ c.id }})"><i class="bi bi-check-lg"></i> 激活</button>
+            {% endif %}
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger)" onclick="delLLM({{ c.id }})"><i class="bi bi-trash"></i></button>
+        </div>
+    </div>
+</div>
+{% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-robot"></i>
+    <h5>尚未配置大模型</h5>
+    <p>配置后，AI 助手可以使用自然语言驱动切换演练</p>
+    <button class="btn btn-primary" onclick="showAddModal()">添加模型</button>
+</div>
+{% endif %}
+
+<!-- Modal -->
+<div class="modal-overlay" id="llmModal">
+    <div class="modal-panel" style="max-width:560px">
+        <div class="modal-header">
+            <h5 id="llmModalTitle">添加大模型</h5>
+            <button class="btn btn-ghost btn-sm" onclick="hideLLMModal()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="llmForm"><input type="hidden" id="llmId">
+                <div class="form-group"><label class="form-label">厂商</label>
+                    <div class="provider-grid" id="providerGrid">
+                        {% for pid, pinfo in providers.items() %}
+                        <div class="provider-card" data-provider="{{ pid }}" onclick="selectProvider('{{ pid }}')">
+                            <i class="bi {% if pid=='openai' %}bi-openai{% elif pid=='ollama' %}bi-cpu{% else %}bi-robot{% endif %}"></i>
+                            <div class="name">{{ pinfo.name }}</div>
+                            <div class="hint">{{ pinfo.default_base[:35] }}...</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+                    <div class="form-group"><label class="form-label">配置名称 *</label><input class="form-control" id="llmName" placeholder="如: 生产GPT-4o"></div>
+                    <div class="form-group"><label class="form-label">模型名称 *</label><input class="form-control" id="llmModel" placeholder="gpt-4o"></div>
+                </div>
+                <div class="form-group"><label class="form-label">API Base URL *</label><input class="form-control" id="llmBase" placeholder="https://api.openai.com/v1"></div>
+                <div class="form-group"><label class="form-label">API Key *</label><input class="form-control" type="password" id="llmKey" placeholder="sk-..."></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-group"><label class="form-label">Temperature</label><input class="form-control" type="number" id="llmTemp" value="0.3" step="0.1" min="0" max="2"></div>
+                    <div class="form-group"><label class="form-label">Max Tokens</label><input class="form-control" type="number" id="llmTokens" value="4096"></div>
+                </div>
+                <div class="form-group"><label class="form-label">描述</label><input class="form-control" id="llmDesc" placeholder="可选"></div>
+                <label class="form-check mt-2"><input type="checkbox" id="llmActive"><span>设为激活状态</span></label>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="hideLLMModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveLLM()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Test Modal -->
+<div class="modal-overlay" id="llmTestModal">
+    <div class="modal-panel" style="max-width:420px">
+        <div class="modal-header"><h5>API 测试</h5><button class="btn btn-ghost btn-sm" onclick="document.getElementById('llmTestModal').classList.remove('show')"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-body" id="llmTestBody"><div class="text-center py-3"><div class="chat-typing" style="justify-content:center"><span></span><span></span><span></span></div></div></div>
+    </div>
+</div>
+
+<script>
+let selectedProvider='openai';
+const LLM_PROVIDERS={{ providers|tojson|safe }};
+function selectProvider(p){
+    selectedProvider=p;
+    document.querySelectorAll('.provider-card').forEach(c=>c.classList.remove('selected'));
+    const card=document.querySelector(`[data-provider="${p}"]`);
+    if(card)card.classList.add('selected');
+    const info=LLM_PROVIDERS[p];
+    if(!info)return;
+    document.getElementById('llmBase').value=info.default_base||'';
+    const models=info.models||[];
+    if(models.length)document.getElementById('llmModel').value=models[0];
+}
+function showAddModal(){
+    document.getElementById('llmModalTitle').textContent='添加大模型';
+    document.getElementById('llmForm').reset();document.getElementById('llmId').value='';
+    document.getElementById('llmModal').classList.add('show');
+    selectProvider('openai');
+}
+function hideLLMModal(){document.getElementById('llmModal').classList.remove('show')}
+async function editLLM(id){
+    const r=await fetch('/api/llm-configs/'+id);
+    const d=await r.json();
+    if(!d.ok){alert(d.error||'获取配置失败');return;}
+    const c=d.config;
+    document.getElementById('llmModalTitle').textContent='编辑大模型';
+    document.getElementById('llmId').value=c.id;document.getElementById('llmName').value=c.name;
+    document.getElementById('llmBase').value=c.api_base;document.getElementById('llmKey').value=c.api_key;
+    document.getElementById('llmModel').value=c.model_name;
+    document.getElementById('llmTemp').value=c.temperature;document.getElementById('llmTokens').value=c.max_tokens;
+    document.getElementById('llmDesc').value=c.description||'';document.getElementById('llmActive').checked=c.is_active;
+    selectedProvider=c.provider;
+    document.querySelectorAll('.provider-card').forEach(card=>card.classList.remove('selected'));
+    const card=document.querySelector(`[data-provider="${c.provider}"]`);
+    if(card)card.classList.add('selected');
+    document.getElementById('llmModal').classList.add('show');
+}
+async function saveLLM(){
+    const id=document.getElementById('llmId').value;
+    const data={
+        provider:selectedProvider,name:document.getElementById('llmName').value,
+        api_base:document.getElementById('llmBase').value,api_key:document.getElementById('llmKey').value,
+        model_name:document.getElementById('llmModel').value,
+        temperature:Math.max(0,Math.min(2,parseFloat(document.getElementById('llmTemp').value)||0.3)),
+        max_tokens:parseInt(document.getElementById('llmTokens').value)||4096,
+        is_active:document.getElementById('llmActive').checked,
+        description:document.getElementById('llmDesc').value,
+    };
+    const url=id?'/api/llm-configs/'+id:'/api/llm-configs';
+    const resp=await fetch(url,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    if(resp.ok){hideLLMModal();location.reload()}else{const e=await resp.json();alert(e.error)}
+}
+async function delLLM(id){if(confirm('确定删除？')){await fetch('/api/llm-configs/'+id,{method:'DELETE'});location.reload()}}
+async function activateLLM(id){
+    await fetch('/api/llm-configs/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:true})});
+    location.reload();
+}
+async function testLLM(id){
+    document.getElementById('llmTestModal').classList.add('show');
+    const body=document.getElementById('llmTestBody');
+    body.innerHTML='<div class="text-center py-3"><div class="chat-typing" style="justify-content:center"><span></span><span></span><span></span></div></div>';
+    try{
+        const r=await fetch('/api/llm-configs/'+id+'/test',{method:'POST'});
+        let d={ok:false,error:'请求失败'};
+        try{d=await r.json()}catch(_){d.error='服务器返回异常 ('+r.status+')';}
+        if(d.ok)body.innerHTML=`<div class="badge badge-success mb-2">✓ 连接成功</div><table class="table table-compact"><tr><td>延迟</td><td>${Math.round((d.latency_seconds||0)*1000)}ms</td></tr><tr><td>响应</td><td>${d.reply||''}</td></tr></table>`;
+        else body.innerHTML=`<div class="badge badge-danger">✗ 连接失败</div><div class="text-xs mt-2" style="color:var(--danger)">${d.error||'未知错误'}</div>`;
+    }catch(e){
+        body.innerHTML=`<div class="badge badge-danger">✗ 连接失败</div><div class="text-xs mt-2" style="color:var(--danger)">${e.message||'网络错误'}</div>`;
+    }
+}
+</script>
+{% endblock %}

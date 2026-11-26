@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}用户管理 - 应急演练平台{% endblock %}
+{% block page_title %}用户管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span><i class="bi bi-people"></i> 用户列表</span>
+        <button class="btn btn-primary btn-sm" onclick="openCreateUserModal()">
+            <i class="bi bi-person-plus"></i> 新增用户
+        </button>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>用户名</th>
+                        <th>角色</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td style="font-weight:600;">
+                            {{ u.username }}
+                            {% if u.id == current_user_id %}
+                            <span class="badge badge-teal" style="margin-left:6px;">当前账号</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.role == 'admin' %}
+                            <span class="badge badge-warning"><i class="bi bi-star-fill" style="font-size:.6rem;"></i> 管理员</span>
+                            {% else %}
+                            <span class="badge badge-slate">普通用户</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.is_active %}
+                            <span class="badge badge-success"><span class="badge-dot"></span> 启用</span>
+                            {% else %}
+                            <span class="badge badge-danger"><span class="badge-dot"></span> 禁用</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm">{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}</td>
+                        <td>
+                            <div style="display:flex;gap:4px;">
+                                <button class="btn btn-outline-teal btn-sm" data-user='{{ u.to_dict()|tojson }}' onclick="editUser(this.dataset.user)">
+                                    <i class="bi bi-pencil-square"></i> 编辑
+                                </button>
+                                {% if u.id != current_user_id %}
+                                <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:#fecaca;" onclick="deleteUser({{ u.id }}, '{{ u.username }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not users %}
+                    <tr>
+                        <td colspan="5" style="text-align:center;padding:var(--space-12);">
+                            <div class="empty-state">
+                                <i class="bi bi-people"></i>
+                                <h5>暂无用户</h5>
+                                <p>点击"新增用户"按钮创建第一个用户</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 新增/编辑用户模态框 -->
+<div class="modal-overlay" id="userModal">
+    <div class="modal-panel" style="max-width:460px;">
+        <div class="modal-header">
+            <h5 id="userModalTitle"><i class="bi bi-person-plus"></i> 新增用户</h5>
+            <button class="btn btn-ghost btn-sm" onclick="closeUserModal()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editUserId">
+            <div class="form-group">
+                <label class="form-label" for="userUsername">用户名</label>
+                <input type="text" id="userUsername" class="form-control" placeholder="请输入用户名" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="userPassword">密码 <small style="color:var(--slate-400);font-weight:400;">（编辑时留空则不修改）</small></label>
+                <input type="password" id="userPassword" class="form-control" placeholder="至少6个字符">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="userRole">角色</label>
+                <select id="userRole" class="form-select">
+                    <option value="user">普通用户</option>
+                    <option value="admin">管理员</option>
+                </select>
+            </div>
+            <div class="form-group" id="userActiveGroup" style="display:none;">
+                <label class="form-label" for="userActive">状态</label>
+                <select id="userActive" class="form-select">
+                    <option value="true">启用</option>
+                    <option value="false">禁用</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeUserModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveUser()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let isEditing = false;
+
+function openCreateUserModal() {
+    isEditing = false;
+    document.getElementById('userModalTitle').textContent = '新增用户';
+    document.getElementById('editUserId').value = '';
+    document.getElementById('userUsername').value = '';
+    document.getElementById('userUsername').disabled = false;
+    document.getElementById('userPassword').value = '';
+    document.getElementById('userPassword').required = true;
+    document.getElementById('userPassword').placeholder = '至少6个字符';
+    document.getElementById('userRole').value = 'user';
+    document.getElementById('userActiveGroup').style.display = 'none';
+    document.getElementById('userModal').classList.add('show');
+}
+
+function editUser(userData) {
+    const user = (typeof userData === 'string') ? JSON.parse(userData) : userData;
+    isEditing = true;
+    document.getElementById('userModalTitle').textContent = '编辑用户: ' + user.username;
+    document.getElementById('editUserId').value = user.id;
+    document.getElementById('userUsername').value = user.username;
+    document.getElementById('userUsername').disabled = true;
+    document.getElementById('userPassword').value = '';
+    document.getElementById('userPassword').required = false;
+    document.getElementById('userPassword').placeholder = '留空则不修改密码';
+    document.getElementById('userRole').value = user.role;
+    document.getElementById('userActive').value = user.is_active ? 'true' : 'false';
+    document.getElementById('userActiveGroup').style.display = '';
+    document.getElementById('userModal').classList.add('show');
+}
+
+function closeUserModal() {
+    document.getElementById('userModal').classList.remove('show');
+}
+
+function saveUser() {
+    const id = document.getElementById('editUserId').value;
+    const username = document.getElementById('userUsername').value.trim();
+    const password = document.getElementById('userPassword').value;
+    const role = document.getElementById('userRole').value;
+
+    if (!username || username.length < 2) {
+        alert('用户名至少2个字符'); return;
+    }
+
+    const body = { username, role };
+
+    if (isEditing) {
+        body.is_active = document.getElementById('userActive').value === 'true';
+        if (password) {
+            if (password.length < 6) { alert('密码长度不能少于6位'); return; }
+            body.password = password;
+        }
+        fetch('/api/users/' + id, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        }).then(r => r.json()).then(d => {
+            if (d.ok) { location.reload(); } else { alert(d.error); }
+        });
+    } else {
+        if (password.length < 6) { alert('密码长度不能少于6位'); return; }
+        body.password = password;
+        fetch('/api/users', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        }).then(r => r.json()).then(d => {
+            if (d.ok) { location.reload(); } else { alert(d.error); }
+        });
+    }
+}
+
+function deleteUser(id, name) {
+    if (!confirm('确定要删除用户 "' + name + '" 吗？此操作不可撤销。')) return;
+    fetch('/api/users/' + id, { method: 'DELETE' })
+        .then(r => r.json()).then(d => {
+            if (d.ok) { location.reload(); } else { alert(d.error); }
+        });
+}
+
+// 点击遮罩关闭
+document.getElementById('userModal').addEventListener('click', function(e) {
+    if (e.target === this) closeUserModal();
+});
+</script>
+{% endblock %}

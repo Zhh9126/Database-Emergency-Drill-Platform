@@ -1,0 +1,1615 @@
+{% extends "base.html" %}
+{% block title %}切换演练 - 应急演练平台{% endblock %}
+{% block page_title %}切换演练{% endblock %}
+
+{% block content %}
+<!-- 切换演练：一级选择数据库类型，二级选择集群部署方式 -->
+<div style="margin-bottom:var(--space-4)">
+    <div class="text-sm text-slate-500 mb-2">
+        <i class="bi bi-layers me-1"></i> 先选择数据库类型，再选择该数据库下的集群部署方式
+    </div>
+    {% set pre_db_type = config.db_type if config else 'mysql' %}
+    {% if pre_db_type == 'oracle' %}{% set pre_subtype = config.oracle_subtype or 'adg' %}
+    {% elif pre_db_type == 'dameng' %}{% set pre_subtype = config.dameng_subtype or 'standby' %}
+    {% elif pre_db_type == 'kingbase' %}{% set pre_subtype = config.kingbase_subtype or 'standby' %}
+    {% elif pre_db_type == 'mysql' %}{% set pre_subtype = config.mysql_subtype or 'replica' %}
+    {% elif pre_db_type == 'opengauss' %}{% set pre_subtype = config.opengauss_subtype or 'standby' %}
+    {% elif pre_db_type == 'oceanbase' %}{% set pre_subtype = config.oceanbase_subtype or 'standby' %}
+    {% elif pre_db_type == 'tidb' %}{% set pre_subtype = config.tidb_subtype or 'standby' %}
+    {% elif pre_db_type == 'mongodb' %}{% set pre_subtype = config.mongodb_subtype or 'replica' %}
+    {% elif pre_db_type == 'highgo' %}{% set pre_subtype = 'standby' %}
+    {% else %}{% set pre_subtype = '' %}{% endif %}
+
+    <!-- 一级：数据库类型 -->
+    <div class="db-type-tabs" id="swDbTypeTabs">
+        <button class="db-type-tab {% if pre_db_type == 'mysql' %}active{% endif %}" data-type="mysql" onclick="switchSwDbType('mysql');clearSwSelection()">
+            <i class="bi bi-database-fill-gear"></i> MySQL
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'oracle' %}active{% endif %}" data-type="oracle" onclick="switchSwDbType('oracle');clearSwSelection()">
+            <i class="bi bi-database-fill-lock"></i> Oracle
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'postgresql' %}active{% endif %}" data-type="postgresql" onclick="switchSwDbType('postgresql');clearSwSelection()">
+            <i class="bi bi-server"></i> PostgreSQL
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'redis' %}active{% endif %}" data-type="redis" onclick="switchSwDbType('redis');clearSwSelection()">
+            <i class="bi bi-lightning-fill"></i> Redis
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'dameng' %}active{% endif %}" data-type="dameng" onclick="switchSwDbType('dameng');clearSwSelection()">
+            <i class="bi bi-diagram-3"></i> 达梦
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'kingbase' %}active{% endif %}" data-type="kingbase" onclick="switchSwDbType('kingbase');clearSwSelection()">
+            <i class="bi bi-shield-lock"></i> 金仓
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'opengauss' %}active{% endif %}" data-type="opengauss" onclick="switchSwDbType('opengauss');clearSwSelection()">
+            <i class="bi bi-hdd-network"></i> openGauss
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'oceanbase' %}active{% endif %}" data-type="oceanbase" onclick="switchSwDbType('oceanbase');clearSwSelection()">
+            <i class="bi bi-cloud-arrow-up"></i> OceanBase
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'tidb' %}active{% endif %}" data-type="tidb" onclick="switchSwDbType('tidb');clearSwSelection()">
+            <i class="bi bi-distribute-vertical"></i> TiDB
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'mongodb' %}active{% endif %}" data-type="mongodb" onclick="switchSwDbType('mongodb');clearSwSelection()">
+            <i class="bi bi-database"></i> MongoDB
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'highgo' %}active{% endif %}" data-type="highgo" onclick="switchSwDbType('highgo');clearSwSelection()">
+            <i class="bi bi-hdd-stack"></i> 瀚高
+        </button>
+        <button class="db-type-tab {% if pre_db_type == 'middleware' %}active{% endif %}" data-type="middleware" onclick="switchSwDbType('middleware');clearSwSelection()">
+            <i class="bi bi-hdd-rack-fill"></i> 中间件
+        </button>
+    </div>
+
+    <!-- 二级：集群部署方式（ subtype ） -->
+    <div class="db-type-tabs" id="swSubtypeTabs" style="margin-top:var(--space-3);{% if pre_db_type in ('mysql','oracle','dameng','kingbase') %}{% set sub_count = {'mysql':3,'oracle':2,'dameng':2,'kingbase':2}[pre_db_type] %}{% if sub_count > 1 %}display:flex{% else %}display:none{% endif %}{% else %}display:none{% endif %}">
+        {% if pre_db_type == 'mysql' %}
+            <button class="db-type-tab {% if pre_subtype == 'replica' %}active{% endif %}" data-subtype="replica" onclick="switchSwSubtype('replica');clearSwSelection()"><i class="bi bi-arrow-left-right"></i> 普通主从<span class="badge" style="background:#ECFDF5;color:#059669;margin-left:4px;font-size:10px">复制型</span></button>
+            <button class="db-type-tab {% if pre_subtype == 'mgr_single' %}active{% endif %}" data-subtype="mgr_single" onclick="switchSwSubtype('mgr_single');clearSwSelection()"><i class="bi bi-diagram-2"></i> MGR 单主<span class="badge" style="background:#ECFDF5;color:#059669;margin-left:4px;font-size:10px">复制型</span></button>
+            <button class="db-type-tab {% if pre_subtype == 'mgr_multi' %}active{% endif %}" data-subtype="mgr_multi" onclick="switchSwSubtype('mgr_multi');clearSwSelection()"><i class="bi bi-diagram-3"></i> MGR 多主<span class="badge" style="background:#FEF2F2;color:#DC2626;margin-left:4px;font-size:10px">集群型</span></button>
+        {% elif pre_db_type == 'oracle' %}
+            <button class="db-type-tab {% if pre_subtype == 'adg' %}active{% endif %}" data-subtype="adg" onclick="switchSwSubtype('adg');clearSwSelection()"><i class="bi bi-database-fill-lock"></i> ADG 主备<span class="badge" style="background:#ECFDF5;color:#059669;margin-left:4px;font-size:10px">复制型</span></button>
+            <button class="db-type-tab {% if pre_subtype == 'rac' %}active{% endif %}" data-subtype="rac" onclick="switchSwSubtype('rac');clearSwSelection()"><i class="bi bi-diagram-3"></i> RAC 集群<span class="badge" style="background:#FEF2F2;color:#DC2626;margin-left:4px;font-size:10px">集群型</span></button>
+        {% elif pre_db_type == 'dameng' %}
+            <button class="db-type-tab {% if pre_subtype == 'standby' %}active{% endif %}" data-subtype="standby" onclick="switchSwSubtype('standby');clearSwSelection()"><i class="bi bi-database"></i> 主备<span class="badge" style="background:#ECFDF5;color:#059669;margin-left:4px;font-size:10px">复制型</span></button>
+            <button class="db-type-tab {% if pre_subtype == 'dsc' %}active{% endif %}" data-subtype="dsc" onclick="switchSwSubtype('dsc');clearSwSelection()"><i class="bi bi-diagram-3"></i> DSC 集群<span class="badge" style="background:#FEF2F2;color:#DC2626;margin-left:4px;font-size:10px">集群型</span></button>
+        {% elif pre_db_type == 'kingbase' %}
+            <button class="db-type-tab {% if pre_subtype == 'standby' %}active{% endif %}" data-subtype="standby" onclick="switchSwSubtype('standby');clearSwSelection()"><i class="bi bi-shield"></i> 主备<span class="badge" style="background:#ECFDF5;color:#059669;margin-left:4px;font-size:10px">复制型</span></button>
+            <button class="db-type-tab {% if pre_subtype == 'kdc' %}active{% endif %}" data-subtype="kdc" onclick="switchSwSubtype('kdc');clearSwSelection()"><i class="bi bi-shield-lock"></i> KDC 集群<span class="badge" style="background:#FEF2F2;color:#DC2626;margin-left:4px;font-size:10px">集群型</span></button>
+        {% elif pre_db_type == 'middleware' %}
+            <button class="db-type-tab {% if pre_subtype == 'active_standby' %}active{% endif %}" data-subtype="active_standby" onclick="switchSwSubtype('active_standby');clearSwSelection()"><i class="bi bi-arrow-left-right"></i> 主备切换<span class="badge" style="background:#ECFDF5;color:#059669;margin-left:4px;font-size:10px">HA切换</span></button>
+            <button class="db-type-tab {% if pre_subtype == 'cluster' %}active{% endif %}" data-subtype="cluster" onclick="switchSwSubtype('cluster');clearSwSelection()"><i class="bi bi-diagram-3"></i> 集群关停<span class="badge" style="background:#FEF2F2;color:#DC2626;margin-left:4px;font-size:10px">集群型</span></button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 搜索 + 配置选择 -->
+<div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-5);flex-wrap:wrap">
+    <div class="config-search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" id="swSearchInput" placeholder="搜索主库IP / 业务系统名" oninput="onSwSearchInput()">
+        <button class="btn btn-ghost btn-sm" type="button" id="swSearchClear" onclick="clearSwSearch()" title="清空" style="display:none">
+            <i class="bi bi-x-circle"></i>
+        </button>
+    </div>
+    <button class="btn btn-outline btn-sm" id="swRefreshBtn" onclick="refreshSwConfigs()" title="刷新配置列表">
+        <i class="bi bi-arrow-clockwise"></i> 刷新
+    </button>
+    <select class="form-select" style="width:auto;min-width:260px" id="swConfigSelect" onchange="onConfigSelect()">
+        <option value="">-- 选择切换配置 --</option>
+        {% for c in configs %}
+            {% if c.db_type == 'oracle' %}{% set _sub = c.oracle_subtype %}
+            {% elif c.db_type == 'dameng' %}{% set _sub = c.dameng_subtype %}
+            {% elif c.db_type == 'kingbase' %}{% set _sub = c.kingbase_subtype %}
+            {% elif c.db_type == 'mysql' %}{% set _sub = c.mysql_subtype %}
+            {% elif c.db_type == 'opengauss' %}{% set _sub = c.opengauss_subtype %}
+            {% elif c.db_type == 'oceanbase' %}{% set _sub = c.oceanbase_subtype %}
+            {% elif c.db_type == 'tidb' %}{% set _sub = c.tidb_subtype %}
+            {% elif c.db_type == 'mongodb' %}{% set _sub = c.mongodb_subtype %}
+            {% elif c.db_type == 'middleware' %}{% set _sub = c.mw_subtype %}
+            {% else %}{% set _sub = '' %}{% endif %}
+            <option value="{{ c.id }}" data-db-type="{{ c.db_type }}" data-subtype="{{ _sub or '' }}" data-name="{{ c.name }}" data-master-host="{{ c.master_host or c.oracle_primary_host or c.pg_primary_host or c.redis_master_host or c.dm_primary_host or c.kb_primary_host or c.og_primary_host or c.ob_primary_host or c.tidb_primary_host or c.mongo_primary_host or c.hg_primary_host or c.rac_node1_host or c.dm_dsc_node1_host or c.kb_kdc_node1_host or c.mw_primary_host or c.mw_cluster_node1_host or '' }}" {% if config and config.id == c.id %}selected{% endif %}>
+                [{{ {'oracle':'Oracle','mysql':'MySQL','postgresql':'PG','redis':'Redis','dameng':'达梦','kingbase':'金仓','opengauss':'openGauss','oceanbase':'OceanBase','tidb':'TiDB','mongodb':'MongoDB','highgo':'瀚高','middleware':'中间件'}.get(c.db_type,c.db_type) }}{% if _sub in ('rac','dsc','kdc') %}-{{ _sub.upper() }}{% elif _sub == 'mgr_single' %}-MGR单主{% elif _sub == 'mgr_multi' %}-MGR多主{% elif _sub == 'cluster' %}-集群{% elif _sub == 'active_standby' %}-主备{% endif %}] {{ c.name }}
+            </option>
+        {% endfor %}
+    </select>
+    <button class="btn btn-outline btn-sm" onclick="location.href='/configure'"><i class="bi bi-gear"></i> 管理配置</button>
+</div>
+
+<!-- 配置信息卡片 + 拓扑预览 -->
+<div id="cfgInfoCard" style="display:none;margin-bottom:var(--space-4)">
+    <div class="topology-card" style="margin-bottom:var(--space-4)">
+        <div class="topology-card-header">
+            <span><i class="bi bi-grid-3x3-gap-fill"></i> 当前拓扑预览</span>
+            <span id="cfgInfoTopo" style="font-weight:600;font-size:.82rem;color:var(--slate-700)"></span>
+        </div>
+        <div class="topology-row" id="cfgTopoPreview"></div>
+    </div>
+    <div class="card mb-3" style="background:linear-gradient(135deg,var(--teal-50),var(--slate-50));border-color:var(--teal-200)">
+        <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4)">
+            <div>
+                <div style="font-weight:700;font-size:.88rem;color:var(--slate-800)" id="cfgInfoTopo2"></div>
+                <div class="text-xs mt-1" style="color:var(--slate-500)" id="cfgInfoParams"></div>
+            </div>
+            <div style="display:flex;gap:var(--space-2);flex-wrap:wrap" id="cfgInfoActions"></div>
+        </div>
+    </div>
+
+    <!-- 集群关停测试：目标节点选择 -->
+    <div id="nodeSelectPanel" class="card mb-3" style="display:none;border-color:var(--amber-300);background:var(--amber-50)">
+        <div class="card-body" style="display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap">
+            <div>
+                <strong style="color:var(--slate-800)"><i class="bi bi-bullseye me-1"></i>选择目标节点</strong>
+                <div class="text-xs text-slate-500 mt-1">集群关停测试将停止并重启被选中的节点，验证剩余节点可继续承载业务</div>
+            </div>
+            <div class="btn-group" role="group" aria-label="目标节点" id="targetNodeGroup">
+                <input type="radio" class="btn-check" name="targetNode" id="targetNode1" value="node1" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="targetNode1">
+                    <i class="bi bi-hdd-network me-1"></i><span id="node1Label">节点1</span>
+                </label>
+                <input type="radio" class="btn-check" name="targetNode" id="targetNode2" value="node2" autocomplete="off" checked>
+                <label class="btn btn-outline-secondary" for="targetNode2">
+                    <i class="bi bi-hdd-network me-1"></i><span id="node2Label">节点2</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- 控制按钮 -->
+    <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-lg" id="btnStartSwitch" onclick="startSwitchover()">
+            <i class="bi bi-play-fill"></i> 开始切换
+        </button>
+        <button class="btn btn-secondary" id="btnDryRun" onclick="startDryRun()">
+            <i class="bi bi-eye"></i> 演习模式
+        </button>
+        <label class="form-check">
+            <input class="form-check-input" type="checkbox" id="chkForce"> 强制切换
+        </label>
+        <div id="reportActions" style="display:none;margin-left:auto;gap:var(--space-2)">
+            <a class="btn btn-outline btn-sm" id="btnReportPdf" href="#" target="_blank"><i class="bi bi-file-earmark-pdf"></i> 下载 PDF 报告</a>
+            <a class="btn btn-outline btn-sm" id="btnReportWord" href="#" target="_blank"><i class="bi bi-file-earmark-word"></i> 下载 Word 报告</a>
+        </div>
+    </div>
+</div>
+
+<!-- 状态显示 -->
+<div id="switchStatus" style="display:none;margin-bottom:var(--space-4)">
+    <div class="card" style="background:var(--teal-50);border-color:var(--teal-200)">
+        <div class="card-body" style="display:flex;align-items:center;gap:var(--space-3)">
+            <div id="statusIcon" style="font-size:1.5rem"><i class="bi bi-arrow-repeat" style="animation:step-pulse 1.5s infinite"></i></div>
+            <div><strong id="statusText">正在执行...</strong><br><small class="text-muted" id="statusSub"></small></div>
+            <div style="margin-left:auto" id="statusBadge"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 日志 + 步骤 -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+    <!-- 实时日志 -->
+    <div class="card">
+        <div class="card-header">
+            <span><i class="bi bi-terminal"></i> 实时日志</span>
+            <button class="btn btn-ghost btn-sm" onclick="clearLogs()"><i class="bi bi-trash"></i></button>
+        </div>
+        <div class="card-body p-0">
+            <div class="log-container" id="logContainer" style="max-height:450px">
+                <div id="logPlaceholder" style="color:var(--slate-600);text-align:center;padding:40px">
+                    <i class="bi bi-terminal" style="font-size:2rem;display:block;margin-bottom:8px"></i>
+                    选择配置并点击「开始切换」，日志将在此处实时显示
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 步骤 -->
+    <div class="card">
+        <div class="card-header"><span><i class="bi bi-list-check"></i> 执行步骤</span></div>
+        <div class="card-body">
+            <div class="steps-vertical" id="stepsContainer">
+                <div id="stepsPlaceholder" style="color:var(--slate-400);text-align:center;padding:20px">等待切换开始...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 切换后拓扑 -->
+<div id="resultTopology" style="display:none;margin-top:var(--space-5)">
+    <div class="topology-card">
+        <div class="topology-card-header">
+            <span><i class="bi bi-diagram-3-fill"></i> 切换后拓扑全景</span>
+            <span class="badge badge-success" style="font-size:.7rem"><span class="badge-dot"></span> 已更新</span>
+        </div>
+        <div class="topology-row" id="topoRow"></div>
+    </div>
+</div>
+
+{% if not configs %}
+<div class="empty-state mt-5">
+    <i class="bi bi-sliders2"></i>
+    <h5>暂无切换配置</h5>
+    <p>请先创建 MySQL、Oracle ADG、PostgreSQL、Redis、达梦、金仓、openGauss、OceanBase、TiDB、MongoDB、瀚高切换配置</p>
+    <a href="/configure" class="btn btn-primary">创建配置</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 由 db_type + subtype 计算 cluster mode
+function calcClusterMode(dbType, subtype) {
+    if (!dbType) return 'replica';
+    if (dbType === 'oracle' && subtype === 'rac') return 'shutdown';
+    if (dbType === 'dameng' && subtype === 'dsc') return 'shutdown';
+    if (dbType === 'kingbase' && subtype === 'kdc') return 'shutdown';
+    if (dbType === 'mysql' && subtype === 'mgr_multi') return 'shutdown';
+    if (subtype === 'cluster') return 'shutdown';
+    return 'replica';
+}
+
+// 数据库类型 → 子类型列表（二级选择）
+const DB_SUBTYPES = {
+    mysql: [
+        { value: 'replica', label: '普通主从', icon: 'bi-arrow-left-right' },
+        { value: 'mgr_single', label: 'MGR 单主', icon: 'bi-diagram-2' },
+        { value: 'mgr_multi', label: 'MGR 多主', icon: 'bi-diagram-3' }
+    ],
+    oracle: [
+        { value: 'adg', label: 'ADG 主备', icon: 'bi-database-fill-lock' },
+        { value: 'rac', label: 'RAC 集群', icon: 'bi-diagram-3' }
+    ],
+    postgresql: [
+        { value: '', label: '流复制', icon: 'bi-server' }
+    ],
+    redis: [
+        { value: '', label: '主从', icon: 'bi-lightning-fill' }
+    ],
+    dameng: [
+        { value: 'standby', label: '主备', icon: 'bi-database' },
+        { value: 'dsc', label: 'DSC 集群', icon: 'bi-diagram-3' }
+    ],
+    kingbase: [
+        { value: 'standby', label: '主备', icon: 'bi-shield' },
+        { value: 'kdc', label: 'KDC 集群', icon: 'bi-shield-lock' }
+    ],
+    opengauss: [
+        { value: 'standby', label: '主备', icon: 'bi-arrow-left-right' },
+        { value: 'cluster', label: '集群', icon: 'bi-diagram-3' }
+    ],
+    oceanbase: [
+        { value: 'standby', label: '主备租户', icon: 'bi-arrow-left-right' },
+        { value: 'cluster', label: '集群', icon: 'bi-diagram-3' }
+    ],
+    tidb: [
+        { value: 'standby', label: '主备集群', icon: 'bi-arrow-left-right' },
+        { value: 'cluster', label: '调度切换', icon: 'bi-distribute-vertical' }
+    ],
+    mongodb: [
+        { value: 'replica', label: '副本集', icon: 'bi-arrow-left-right' },
+        { value: 'cluster', label: '分片集群', icon: 'bi-diagram-2' }
+    ],
+    highgo: [
+        { value: 'standby', label: '主备', icon: 'bi-arrow-left-right' }
+    ],
+    middleware: [
+        { value: 'active_standby', label: '主备切换', icon: 'bi-arrow-left-right' },
+        { value: 'cluster', label: '集群关停', icon: 'bi-diagram-3' }
+    ]
+};
+
+let allConfigs = {{ configs|tojson|safe if configs else '[]' }};
+let currentSwDbType = 'mysql';
+let currentSwSubtype = 'replica';
+let selectedCfg = null;
+let switchRunning = false;
+
+// 从 URL 参数加载
+{% if config %}
+document.addEventListener('DOMContentLoaded', () => {
+    const ct = '{{ config.db_type }}';
+    let sub = '';
+    if (ct === 'mysql') sub = '{{ config.mysql_subtype or "replica" }}';
+    else if (ct === 'oracle') sub = '{{ config.oracle_subtype or "adg" }}';
+    else if (ct === 'dameng') sub = '{{ config.dameng_subtype or "standby" }}';
+    else if (ct === 'kingbase') sub = '{{ config.kingbase_subtype or "standby" }}';
+    // 服务端已渲染高亮，只需同步 JS 状态并触发配置选择
+    currentSwDbType = ct;
+    currentSwSubtype = sub || getDefaultSubtype(ct);
+    renderSubtypeTabs();
+    applySwFilter();
+    onConfigSelect();
+});
+{% else %}
+document.addEventListener('DOMContentLoaded', () => {
+    renderSubtypeTabs();
+    applySwFilter();
+});
+{% endif %}
+
+function getDefaultSubtype(dbType) {
+    const arr = DB_SUBTYPES[dbType];
+    return arr && arr[0] ? arr[0].value : '';
+}
+
+// 为集群关停测试生成节点标签
+function getNodeLabel(cfg, dbType, subtype, nodeNum) {
+    if (!cfg) return `节点${nodeNum}`;
+    const suffix = nodeNum === 1 ? '1' : '2';
+    if (dbType === 'oracle' && subtype === 'rac') {
+        return nodeNum === 1
+            ? `${cfg.rac_node1_host || '节点1'}:${cfg.rac_node1_port || '1521'}`
+            : `${cfg.rac_node2_host || '节点2'}:${cfg.rac_node2_port || '1521'}`;
+    }
+    if (dbType === 'dameng' && subtype === 'dsc') {
+        return nodeNum === 1
+            ? `${cfg.dm_dsc_node1_host || '节点1'}:${cfg.dm_dsc_node1_port || '5236'}`
+            : `${cfg.dm_dsc_node2_host || '节点2'}:${cfg.dm_dsc_node2_port || '5236'}`;
+    }
+    if (dbType === 'kingbase' && subtype === 'kdc') {
+        return nodeNum === 1
+            ? `${cfg.kb_kdc_node1_host || '节点1'}:${cfg.kb_kdc_node1_port || '54321'}`
+            : `${cfg.kb_kdc_node2_host || '节点2'}:${cfg.kb_kdc_node2_port || '54321'}`;
+    }
+    if (dbType === 'mysql' && subtype === 'mgr_multi') {
+        return nodeNum === 1
+            ? `${cfg.master_host || '节点1'}:${cfg.master_port || '3306'}`
+            : `${cfg.slave_host || '节点2'}:${cfg.slave_port || '3306'}`;
+    }
+    return `节点${nodeNum}`;
+}
+
+// 切换数据库类型 tab（一级）
+function switchSwDbType(type, clearSelection = true) {
+    currentSwDbType = type;
+    // 高亮一级 tab
+    document.querySelectorAll('#swDbTypeTabs .db-type-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.type === type);
+    });
+    // 重新渲染二级 tabs
+    const subList = DB_SUBTYPES[type] || [];
+    currentSwSubtype = subList[0] ? subList[0].value : '';
+    renderSubtypeTabs();
+    applySwFilter();
+    if (clearSelection) clearSwSelection();
+}
+
+// 渲染二级 subtype tabs
+function renderSubtypeTabs() {
+    const container = document.getElementById('swSubtypeTabs');
+    const subList = DB_SUBTYPES[currentSwDbType] || [];
+    if (subList.length <= 1) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+    container.style.display = 'flex';
+    container.innerHTML = subList.map(s => {
+        const active = s.value === currentSwSubtype ? 'active' : '';
+        const mode = calcClusterMode(currentSwDbType, s.value);
+        const modeBadge = mode === 'shutdown'
+            ? '<span class="badge" style="background:#FEF2F2;color:#DC2626;margin-left:4px;font-size:10px">集群型</span>'
+            : '<span class="badge" style="background:#ECFDF5;color:#059669;margin-left:4px;font-size:10px">复制型</span>';
+        return `<button class="db-type-tab ${active}" data-subtype="${s.value}" onclick="switchSwSubtype('${s.value}');clearSwSelection()">
+            <i class="bi ${s.icon}"></i> ${s.label}${modeBadge}
+        </button>`;
+    }).join('');
+}
+
+// 切换子类型 tab（二级）
+function switchSwSubtype(subtype, clearSelection = true) {
+    currentSwSubtype = subtype;
+    document.querySelectorAll('#swSubtypeTabs .db-type-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.subtype === subtype);
+    });
+    applySwFilter();
+    if (clearSelection) clearSwSelection();
+}
+
+// 应用当前 db_type + subtype + 搜索关键字 过滤下拉
+function applySwFilter() {
+    const sel = document.getElementById('swConfigSelect');
+    const keyword = (document.getElementById('swSearchInput').value || '').trim().toLowerCase();
+    Array.from(sel.options).forEach((opt, i) => {
+        if (i === 0) {
+            opt.style.display = '';
+            return;
+        }
+        const dt = opt.dataset.dbType || '';
+        const sub = opt.dataset.subtype || '';
+
+        // 类型匹配：当前激活的 tab 对应什么 db_type + subtype
+        const typeMatch = dt === currentSwDbType;
+        const subtypeMatch = currentSwSubtype === '' || sub === currentSwSubtype;
+
+        // 关键字匹配
+        const kwMatch = !keyword ||
+            (opt.dataset.name || '').toLowerCase().includes(keyword) ||
+            (opt.dataset.masterHost || '').toLowerCase().includes(keyword);
+
+        opt.style.display = (typeMatch && subtypeMatch && kwMatch) ? '' : 'none';
+    });
+}
+
+// 搜索框输入
+function onSwSearchInput() {
+    const inp = document.getElementById('swSearchInput');
+    document.getElementById('swSearchClear').style.display = inp.value ? '' : 'none';
+    applySwFilter();
+}
+
+function clearSwSearch() {
+    const inp = document.getElementById('swSearchInput');
+    inp.value = '';
+    document.getElementById('swSearchClear').style.display = 'none';
+    applySwFilter();
+}
+
+// 刷新配置列表
+async function refreshSwConfigs() {
+    const btn = document.getElementById('swRefreshBtn');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise" style="animation:step-pulse 1s linear infinite"></i> 刷新中';
+    try {
+        const resp = await fetch('/api/configs').then(r => r.json());
+        allConfigs = resp || [];
+        rebuildSwSelectOptions(allConfigs);
+        // 重新触发过滤
+        applySwFilter();
+        // 通知
+        if (window.showToast) {
+            showToast(`配置已刷新（${allConfigs.length} 条）`, 'success');
+        }
+    } catch (e) {
+        if (window.showToast) {
+            showToast('刷新失败：' + (e.message || e), 'error');
+        } else {
+            alert('刷新失败：' + (e.message || e));
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
+
+// 用最新的 configs 重建下拉选项（保留当前选中）
+function rebuildSwSelectOptions(list) {
+    const sel = document.getElementById('swConfigSelect');
+    const currentValue = sel.value;
+    const TYPE_LABEL = {oracle:'Oracle',mysql:'MySQL',postgresql:'PG',redis:'Redis',dameng:'达梦',kingbase:'金仓',
+        opengauss:'openGauss',oceanbase:'OceanBase',tidb:'TiDB',mongodb:'MongoDB',highgo:'瀚高',middleware:'中间件'};
+    const masterHostOf = c => c.master_host || c.oracle_primary_host || c.pg_primary_host ||
+        c.redis_master_host || c.dm_primary_host || c.kb_primary_host ||
+        c.og_primary_host || c.ob_primary_host || c.tidb_primary_host ||
+        c.mongo_primary_host || c.hg_primary_host ||
+        c.mw_primary_host || c.mw_cluster_node1_host ||
+        c.rac_node1_host || c.dm_dsc_node1_host || c.kb_kdc_node1_host || '';
+    const subTagOf = c => {
+        if (c.oracle_subtype === 'rac') return '-RAC';
+        if (c.dameng_subtype === 'dsc') return '-DSC';
+        if (c.kingbase_subtype === 'kdc') return '-KDC';
+        if (c.mysql_subtype === 'mgr_single') return '-MGR单主';
+        if (c.mysql_subtype === 'mgr_multi') return '-MGR多主';
+        if (c.opengauss_subtype === 'cluster') return '-集群';
+        if (c.oceanbase_subtype === 'cluster') return '-集群';
+        if (c.tidb_subtype === 'cluster') return '-调度';
+        if (c.mongodb_subtype === 'cluster') return '-分片';
+        return '';
+    };
+    // 清空除第一项外的所有 option
+    while (sel.options.length > 1) sel.remove(1);
+    list.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.dataset.dbType = c.db_type;
+        opt.dataset.subtype = c.mysql_subtype || c.oracle_subtype || c.dameng_subtype || c.kingbase_subtype ||
+            c.opengauss_subtype || c.oceanbase_subtype || c.tidb_subtype || c.mongodb_subtype || '';
+        opt.dataset.name = c.name || '';
+        opt.dataset.masterHost = masterHostOf(c);
+        const tag = (TYPE_LABEL[c.db_type] || c.db_type) + subTagOf(c);
+        opt.textContent = `[${tag}] ${c.name}`;
+        if (currentValue && String(c.id) === String(currentValue)) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+function clearSwSelection() {
+    const sel = document.getElementById('swConfigSelect');
+    sel.value = '';
+    selectedCfg = null;
+    document.getElementById('cfgInfoCard').style.display = 'none';
+    document.getElementById('switchStatus').style.display = 'none';
+    document.getElementById('resultTopology').style.display = 'none';
+}
+
+async function onConfigSelect() {
+    const sel = document.getElementById('swConfigSelect');
+    const cfgId = sel.value;
+    if (!cfgId) {
+        document.getElementById('cfgInfoCard').style.display = 'none';
+        selectedCfg = null;
+        return;
+    }
+    // 优先从 allConfigs 中查找
+    selectedCfg = allConfigs.find(c => c.id == cfgId);
+    if (!selectedCfg) {
+        try {
+            const resp = await fetch('/api/configs').then(r => r.json());
+            selectedCfg = resp.find(c => c.id == cfgId);
+            if (selectedCfg) allConfigs = resp;
+        } catch(e) {}
+    }
+    if (!selectedCfg) {
+        alert('未找到该配置（id=' + cfgId + '），可能已被删除，请重新选择');
+        sel.value = '';
+        return;
+    }
+    const dt = selectedCfg.db_type;
+
+    // 计算 subtype 与 cluster mode
+    let sub = '';
+    if (dt === 'mysql') sub = (selectedCfg.mysql_subtype || 'replica');
+    else if (dt === 'oracle') sub = (selectedCfg.oracle_subtype || 'adg');
+    else if (dt === 'dameng') sub = (selectedCfg.dameng_subtype || 'standby');
+    else if (dt === 'kingbase') sub = (selectedCfg.kingbase_subtype || 'standby');
+    else if (dt === 'opengauss') sub = (selectedCfg.opengauss_subtype || 'standby');
+    else if (dt === 'oceanbase') sub = (selectedCfg.oceanbase_subtype || 'standby');
+    else if (dt === 'tidb') sub = (selectedCfg.tidb_subtype || 'standby');
+    else if (dt === 'mongodb') sub = (selectedCfg.mongodb_subtype || 'replica');
+    else if (dt === 'highgo') sub = 'standby';
+    else if (dt === 'middleware') sub = (selectedCfg.mw_subtype || 'active_standby');
+    const cfgMode = calcClusterMode(dt, sub);
+
+    // 同步一级/二级 tab（不清空 sel.value）
+    switchSwDbType(dt, false);
+    switchSwSubtype(sub, false);
+    sel.value = cfgId;  // 保留显式同步，多一道保险
+
+    const card = document.getElementById('cfgInfoCard');
+    card.style.display = '';
+    // 统一显示集群模式 (复制型 / 集群型)
+    const isShutdown = cfgMode === 'shutdown';
+
+    // 集群关停测试：显隐节点选择面板并设置节点标签
+    const nodePanel = document.getElementById('nodeSelectPanel');
+    if (isShutdown) {
+        nodePanel.style.display = '';
+        document.getElementById('node1Label').textContent = getNodeLabel(selectedCfg, dt, sub, 1);
+        document.getElementById('node2Label').textContent = getNodeLabel(selectedCfg, dt, sub, 2);
+        // 默认选中 node2
+        document.getElementById('targetNode2').checked = true;
+    } else {
+        nodePanel.style.display = 'none';
+    }
+
+    // 隐藏报告按钮（新切换未完成前不显示）
+    document.getElementById('reportActions').style.display = 'none';
+    const clusterModeHTML = isShutdown
+        ? `<span class="badge" style="background:#FEF2F2;color:#DC2626"><i class="bi bi-shield-shaded me-1"></i>集群型主备切换</span>`
+        : `<span class="badge" style="background:#ECFDF5;color:#059669"><i class="bi bi-arrow-left-right me-1"></i>复制型主备切换</span>`;
+    if (dt === 'oracle') {
+        const oraSub = (selectedCfg.oracle_subtype || 'adg');
+        if (oraSub === 'rac') {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-diagram-3-fill me-1" style="color:#9333EA"></i> Oracle RAC: ` +
+                `<code>${selectedCfg.rac_node1_host}/${selectedCfg.rac_node1_sid}</code>` +
+                ` <span class="text-muted">⇄</span> ` +
+                `<code>${selectedCfg.rac_node2_host}/${selectedCfg.rac_node2_sid}</code>` +
+                ` · 服务: <strong>${selectedCfg.rac_service_name}</strong>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.oracle_user}` +
+                (selectedCfg.force_switchover ? ' · <span class="badge badge-warning">强制</span>' : '');
+        } else {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-database-fill-lock me-1" style="color:#7C3AED"></i> Oracle ADG: ` +
+                `<code>${selectedCfg.oracle_primary_host}:${selectedCfg.oracle_primary_port}/${selectedCfg.oracle_primary_sid}</code>` +
+                ` <span class="text-muted">⇄</span> ` +
+                `<code>${selectedCfg.oracle_standby_host}:${selectedCfg.oracle_standby_port}/${selectedCfg.oracle_standby_sid}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.oracle_user} · 模式: ${selectedCfg.oracle_connect_mode}` +
+                (selectedCfg.force_switchover ? ' · <span class="badge badge-warning">强制</span>' : '') +
+                (selectedCfg.auto_rollback ? ' · <span class="badge badge-teal">自动回滚</span>' : '');
+        }
+        document.getElementById('cfgInfoActions').innerHTML =
+            `<button class="btn btn-outline btn-sm" onclick="testOracleStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+    } else if (dt === 'postgresql') {
+        document.getElementById('cfgInfoTopo').innerHTML =
+            `${clusterModeHTML} ` +
+            `<i class="bi bi-server me-1" style="color:#1D4ED8"></i> PostgreSQL: ` +
+            `<code>${selectedCfg.pg_primary_host}:${selectedCfg.pg_primary_port}</code>` +
+            ` <span class="text-muted">→</span> ` +
+            `<code>${selectedCfg.pg_standby_host}:${selectedCfg.pg_standby_port}</code>`;
+        document.getElementById('cfgInfoParams').innerHTML =
+            `用户: ${selectedCfg.pg_user} · 延迟阈值: ${selectedCfg.max_delay}s` +
+            (selectedCfg.force_switchover ? ' · <span class="badge badge-warning">强制</span>' : '') +
+            (selectedCfg.auto_rollback ? ' · <span class="badge badge-teal">自动回滚</span>' : '');
+        document.getElementById('cfgInfoActions').innerHTML =
+            `<button class="btn btn-outline btn-sm" onclick="checkPgStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+    } else if (dt === 'redis') {
+        document.getElementById('cfgInfoTopo').innerHTML =
+            `${clusterModeHTML} ` +
+            `<i class="bi bi-lightning-fill me-1" style="color:#DC2626"></i> Redis 主从: ` +
+            `<code>${selectedCfg.redis_master_host || '-'}:${selectedCfg.redis_master_port}</code>` +
+            ` <span class="text-muted">→</span> <code>${selectedCfg.redis_slave_host || '-'}:${selectedCfg.redis_slave_port}</code>`;
+        document.getElementById('cfgInfoParams').innerHTML =
+            (selectedCfg.redis_master_pass ? '主库密码已设置 · ' : '主库无密码 · ') +
+            (selectedCfg.force_switchover ? '<span class="badge badge-warning">强制</span>' : '');
+        document.getElementById('cfgInfoActions').innerHTML =
+            `<button class="btn btn-outline btn-sm" onclick="checkRedisStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+    } else if (dt === 'dameng') {
+        const dmSub = (selectedCfg.dameng_subtype || 'standby');
+        if (dmSub === 'dsc') {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-diagram-3-fill me-1" style="color:#BE123C"></i> 达梦 DSC: ` +
+                `<code>${selectedCfg.dm_dsc_node1_host}:${selectedCfg.dm_dsc_node1_port}</code>` +
+                ` <span class="text-muted">⇄</span> ` +
+                `<code>${selectedCfg.dm_dsc_node2_host}:${selectedCfg.dm_dsc_node2_port}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.dm_dsc_user} · 服务: ${selectedCfg.dm_dsc_database}`;
+            document.getElementById('cfgInfoActions').innerHTML =
+                `<button class="btn btn-outline btn-sm" onclick="checkDmStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+        } else {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-database me-1" style="color:#BE123C"></i> 达梦主备: ` +
+                `<code>${selectedCfg.dm_primary_host || selectedCfg.master_host}:${selectedCfg.dm_primary_port || selectedCfg.master_port}</code>` +
+                ` <span class="text-muted">⇄</span> ` +
+                `<code>${selectedCfg.dm_standby_host || selectedCfg.slave_host}:${selectedCfg.dm_standby_port || selectedCfg.slave_port}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.dm_user || selectedCfg.mysql_user || ''} · 端口: ${selectedCfg.dm_primary_port || selectedCfg.master_port}`;
+            document.getElementById('cfgInfoActions').innerHTML =
+                `<button class="btn btn-outline btn-sm" onclick="checkDmStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+        }
+    } else if (dt === 'kingbase') {
+        const kbSub = (selectedCfg.kingbase_subtype || 'standby');
+        if (kbSub === 'kdc') {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-shield-fill-check me-1" style="color:#0369A1"></i> 金仓 KDC: ` +
+                `<code>${selectedCfg.kb_kdc_node1_host}:${selectedCfg.kb_kdc_node1_port}</code>` +
+                ` <span class="text-muted">⇄</span> ` +
+                `<code>${selectedCfg.kb_kdc_node2_host}:${selectedCfg.kb_kdc_node2_port}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.kb_kdc_user} · 数据库: ${selectedCfg.kb_kdc_database}`;
+            document.getElementById('cfgInfoActions').innerHTML =
+                `<button class="btn btn-outline btn-sm" onclick="checkKbStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+        } else {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-shield me-1" style="color:#0369A1"></i> 金仓主备: ` +
+                `<code>${selectedCfg.kb_primary_host || selectedCfg.master_host}:${selectedCfg.kb_primary_port || selectedCfg.master_port}</code>` +
+                ` <span class="text-muted">⇄</span> ` +
+                `<code>${selectedCfg.kb_standby_host || selectedCfg.slave_host}:${selectedCfg.kb_standby_port || selectedCfg.slave_port}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.kb_user || selectedCfg.mysql_user || ''} · 端口: ${selectedCfg.kb_primary_port || selectedCfg.master_port}`;
+            document.getElementById('cfgInfoActions').innerHTML =
+                `<button class="btn btn-outline btn-sm" onclick="checkKbStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+        }
+    } else if (['opengauss','oceanbase','tidb','mongodb','highgo','middleware'].includes(dt)) {
+        // 新数据库类型统一展示
+        const hostMap = {
+            opengauss: ['og_primary_host','og_primary_port','og_standby_host','og_standby_port'],
+            oceanbase: ['ob_primary_host','ob_primary_port','ob_standby_host','ob_standby_port'],
+            tidb: ['tidb_primary_host','tidb_primary_port','tidb_standby_host','tidb_standby_port'],
+            mongodb: ['mongo_primary_host','mongo_primary_port','mongo_standby_host','mongo_standby_port'],
+            highgo: ['hg_primary_host','hg_primary_port','hg_standby_host','hg_standby_port'],
+        };
+        const labels = {
+            opengauss: 'openGauss', oceanbase: 'OceanBase', tidb: 'TiDB', mongodb: 'MongoDB', highgo: '瀚高',
+            middleware: '中间件'
+        };
+        const km = hostMap[dt] || [];
+        const pHost = selectedCfg[km[0]] || '';
+        const pPort = selectedCfg[km[1]] || '';
+        const sHost = selectedCfg[km[2]] || '';
+        const sPort = selectedCfg[km[3]] || '';
+        document.getElementById('cfgInfoTopo').innerHTML =
+            `${clusterModeHTML} <i class="bi bi-hdd-network me-1"></i> ${labels[dt] || dt}: ` +
+            `<code>${pHost}:${pPort}</code> <span class="text-muted">⇄</span> <code>${sHost}:${sPort}</code>`;
+        document.getElementById('cfgInfoParams').innerHTML =
+            (selectedCfg.force_switchover ? '<span class="badge badge-warning">强制</span> ' : '') +
+            (selectedCfg.auto_rollback ? '<span class="badge badge-teal">自动回滚</span>' : '');
+        document.getElementById('cfgInfoActions').innerHTML =
+            `<button class="btn btn-outline btn-sm" onclick="checkGenericStatus(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+    } else {
+        const mySub = selectedCfg.mysql_subtype || 'replica';
+        if (mySub === 'mgr_single') {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-database-fill-gear me-1" style="color:#D97706"></i> MySQL MGR 单主: ` +
+                `<code>${selectedCfg.master_host}:${selectedCfg.master_port}</code>` +
+                ` <span class="text-muted">⇄</span> <code>${selectedCfg.slave_host}:${selectedCfg.slave_port}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.mysql_user}` +
+                (selectedCfg.force_switchover ? ' · <span class="badge badge-warning">强制</span>' : '') +
+                (selectedCfg.auto_rollback ? ' · <span class="badge badge-teal">自动回滚</span>' : '');
+            document.getElementById('cfgInfoActions').innerHTML =
+                `<button class="btn btn-outline btn-sm" onclick="testMysqlRepl(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+        } else if (mySub === 'mgr_multi') {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-database-fill-gear me-1" style="color:#D97706"></i> MySQL MGR 多主: ` +
+                `<code>${selectedCfg.master_host}:${selectedCfg.master_port}</code>` +
+                ` <span class="text-muted">⇄</span> <code>${selectedCfg.slave_host}:${selectedCfg.slave_port}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `用户: ${selectedCfg.mysql_user} · 集群关停测试：停止目标节点 → 验证对端业务 → 恢复目标节点`;
+            document.getElementById('cfgInfoActions').innerHTML =
+                `<button class="btn btn-outline btn-sm" onclick="testMysqlRepl(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查状态</button>`;
+        } else {
+            document.getElementById('cfgInfoTopo').innerHTML =
+                `${clusterModeHTML} ` +
+                `<i class="bi bi-database-fill-gear me-1" style="color:#D97706"></i> MySQL 主从: ` +
+                `<code>${selectedCfg.master_host}:${selectedCfg.master_port}</code>` +
+                ` <span class="text-muted">→</span> <code>${selectedCfg.slave_host}:${selectedCfg.slave_port}</code>`;
+            document.getElementById('cfgInfoParams').innerHTML =
+                `延迟阈值: ${selectedCfg.max_delay}s · 超时: ${selectedCfg.wait_timeout}s` +
+                (selectedCfg.force_switchover ? ' · <span class="badge badge-warning">强制</span>' : '') +
+                (selectedCfg.auto_rollback ? ' · <span class="badge badge-teal">自动回滚</span>' : '');
+            document.getElementById('cfgInfoActions').innerHTML =
+                `<button class="btn btn-outline btn-sm" onclick="testMysqlRepl(${cfgId})"><i class="bi bi-clipboard-pulse"></i> 检查复制状态</button>`;
+        }
+    }
+
+    // 渲染切换前拓扑预览
+    renderCfgTopoPreview();
+
+    // 同步详情文本（cfgInfoTopo2）
+    const topoText = document.getElementById('cfgInfoTopo');
+    if (topoText) document.getElementById('cfgInfoTopo2').innerHTML = topoText.innerHTML;
+
+    // 选中配置后，立即在右侧两个面板显示预演信息（避免空白状态）
+    showConfigPreview();
+}
+
+/**
+ * 渲染切换前拓扑预览（配置信息卡片上方的可视化拓扑）
+ */
+function renderCfgTopoPreview() {
+    if (!selectedCfg) return;
+    const container = document.getElementById('cfgTopoPreview');
+    const cfg = selectedCfg;
+    const dt = cfg.db_type;
+    let sub = '';
+    if (dt === 'mysql') sub = cfg.mysql_subtype || 'replica';
+    else if (dt === 'oracle') sub = cfg.oracle_subtype || 'adg';
+    else if (dt === 'dameng') sub = cfg.dameng_subtype || 'standby';
+    else if (dt === 'kingbase') sub = cfg.kingbase_subtype || 'standby';
+    else if (dt === 'opengauss') sub = cfg.opengauss_subtype || 'standby';
+    else if (dt === 'oceanbase') sub = cfg.oceanbase_subtype || 'standby';
+    else if (dt === 'tidb') sub = cfg.tidb_subtype || 'standby';
+    else if (dt === 'mongodb') sub = cfg.mongodb_subtype || 'replica';
+    else if (dt === 'highgo') sub = 'standby';
+
+    const isCluster = calcClusterMode(dt, sub) === 'shutdown';
+
+    function pNode(role, icon, iconColor, label, host, tag) {
+        return `<div class="topology-node ${role}" data-probe-node>
+            <i class="${icon}" style="color:${iconColor}"></i>
+            <div class="label"><span class="role-dot"></span>${label}</div>
+            <div class="host">${host}</div>
+            ${tag ? `<div class="tag">${tag}</div>` : ''}
+        </div>`;
+    }
+    function pArrow(icon, label) {
+        return `<div class="topology-arrow"><i class="${icon}"></i><div class="topology-flow-line"></div><small>${label}</small></div>`;
+    }
+
+    const dbIcons = {
+        mysql: ['bi bi-database-fill-gear', 'var(--teal-600)'],
+        oracle: ['bi bi-database-fill-lock', '#7C3AED'],
+        postgresql: ['bi bi-server', 'var(--teal-600)'],
+        redis: ['bi bi-lightning-fill', '#DC2626'],
+        dameng: ['bi bi-database', '#BE123C'],
+        kingbase: ['bi bi-shield-lock', '#0369A1'],
+        opengauss: ['bi bi-hdd-network', '#6D28D9'],
+        oceanbase: ['bi bi-cloud-arrow-up', '#B45309'],
+        tidb: ['bi bi-distribute-vertical', '#BE185D'],
+        mongodb: ['bi bi-database', '#047857'],
+        highgo: ['bi bi-hdd-stack', '#0369A1'],
+        middleware: ['bi bi-hdd-rack-fill', '#374151'],
+    };
+    const [icon, color] = dbIcons[dt] || dbIcons.mysql;
+
+    if (isCluster) {
+        // 集群模式：双节点平等拓扑
+        let n1h = '', n1p = '', n2h = '', n2p = '';
+        const portMap = {oracle_rac:'1521', dameng_dsc:'5236', kingbase_kdc:'54321', tidb:'4000'};
+        if (dt === 'oracle') { n1h = cfg.rac_node1_host; n1p = cfg.rac_node1_port || '1521'; n2h = cfg.rac_node2_host; n2p = cfg.rac_node2_port || '1521'; }
+        else if (dt === 'dameng') { n1h = cfg.dm_dsc_node1_host; n1p = cfg.dm_dsc_node1_port || '5236'; n2h = cfg.dm_dsc_node2_host; n2p = cfg.dm_dsc_node2_port || '5236'; }
+        else if (dt === 'kingbase') { n1h = cfg.kb_kdc_node1_host; n1p = cfg.kb_kdc_node1_port || '54321'; n2h = cfg.kb_kdc_node2_host; n2p = cfg.kb_kdc_node2_port || '54321'; }
+        else if (dt === 'mysql') { n1h = cfg.master_host; n1p = cfg.master_port; n2h = cfg.slave_host; n2p = cfg.slave_port; }
+        else if (dt === 'opengauss') { n1h = cfg.og_cluster_node1_host || cfg.og_primary_host; n1p = cfg.og_cluster_node1_port || cfg.og_primary_port || '5432'; n2h = cfg.og_cluster_node2_host || cfg.og_standby_host; n2p = cfg.og_cluster_node2_port || cfg.og_standby_port || '5432'; }
+        else if (dt === 'oceanbase') { n1h = cfg.ob_cluster_node1_host || cfg.ob_primary_host; n1p = cfg.ob_cluster_node1_port || cfg.ob_primary_port || '2881'; n2h = cfg.ob_cluster_node2_host || cfg.ob_standby_host; n2p = cfg.ob_cluster_node2_port || cfg.ob_standby_port || '2881'; }
+        else if (dt === 'tidb') { n1h = cfg.tidb_cluster_node1_host || cfg.tidb_primary_host; n1p = cfg.tidb_cluster_node1_port || cfg.tidb_primary_port || '4000'; n2h = cfg.tidb_cluster_node2_host || cfg.tidb_standby_host; n2p = cfg.tidb_cluster_node2_port || cfg.tidb_standby_port || '4000'; }
+        else if (dt === 'mongodb') { n1h = cfg.mongo_cluster_node1_host || cfg.mongo_primary_host; n1p = cfg.mongo_cluster_node1_port || 27017; n2h = cfg.mongo_cluster_node2_host || cfg.mongo_standby_host; n2p = cfg.mongo_cluster_node2_port || 27017; }
+        container.innerHTML =
+            pNode('primary', icon, color, '节点1 (正常)', `${n1h || '-'}:${n1p}`, '') +
+            pArrow('bi bi-arrow-left-right', 'HA 对等') +
+            pNode('primary', icon, color, '节点2 (正常)', `${n2h || '-'}:${n2p}`, '');
+    } else {
+        // 主备模式：Primary → Standby
+        let mH = '', mP = '', sH = '', sP = '';
+        if (dt === 'mysql') { mH = cfg.master_host; mP = cfg.master_port; sH = cfg.slave_host; sP = cfg.slave_port; }
+        else if (dt === 'oracle') { mH = cfg.oracle_primary_host; mP = cfg.oracle_primary_port || '1521'; sH = cfg.oracle_standby_host; sP = cfg.oracle_standby_port || '1521'; }
+        else if (dt === 'postgresql') { mH = cfg.pg_primary_host; mP = cfg.pg_primary_port || '5432'; sH = cfg.pg_standby_host; sP = cfg.pg_standby_port || '5432'; }
+        else if (dt === 'redis') { mH = cfg.redis_master_host || '-'; mP = cfg.redis_master_port || '6379'; sH = cfg.redis_slave_host || '-'; sP = cfg.redis_slave_port || '6379'; }
+        else if (dt === 'dameng') { mH = cfg.dm_primary_host || cfg.master_host || '-'; mP = cfg.dm_primary_port || cfg.master_port || '5236'; sH = cfg.dm_standby_host || cfg.slave_host || '-'; sP = cfg.dm_standby_port || cfg.slave_port || '5236'; }
+        else if (dt === 'kingbase') { mH = cfg.kb_primary_host || cfg.master_host || '-'; mP = cfg.kb_primary_port || cfg.master_port || '54321'; sH = cfg.kb_standby_host || cfg.slave_host || '-'; sP = cfg.kb_standby_port || cfg.slave_port || '54321'; }
+        else if (dt === 'opengauss') { mH = cfg.og_primary_host || '-'; mP = cfg.og_primary_port || '5432'; sH = cfg.og_standby_host || '-'; sP = cfg.og_standby_port || '5432'; }
+        else if (dt === 'oceanbase') { mH = cfg.ob_primary_host || '-'; mP = cfg.ob_primary_port || '2881'; sH = cfg.ob_standby_host || '-'; sP = cfg.ob_standby_port || '2881'; }
+        else if (dt === 'tidb') { mH = cfg.tidb_primary_host || '-'; mP = cfg.tidb_primary_port || '4000'; sH = cfg.tidb_standby_host || '-'; sP = cfg.tidb_standby_port || '4000'; }
+        else if (dt === 'mongodb') { mH = cfg.mongo_primary_host || '-'; mP = cfg.mongo_primary_port || 27017; sH = cfg.mongo_standby_host || '-'; sP = cfg.mongo_standby_port || 27017; }
+        else if (dt === 'highgo') { mH = cfg.hg_primary_host || '-'; mP = cfg.hg_primary_port || '5432'; sH = cfg.hg_standby_host || '-'; sP = cfg.hg_standby_port || '5432'; }
+        else if (dt === 'middleware') {
+            if (sub === 'cluster') { mH = cfg.mw_cluster_node1_host || '-'; mP = cfg.mw_cluster_node1_port || '80'; sH = cfg.mw_cluster_node2_host || '-'; sP = cfg.mw_cluster_node2_port || '80'; }
+            else { mH = cfg.mw_primary_host || '-'; mP = cfg.mw_primary_port || '80'; sH = cfg.mw_secondary_host || '-'; sP = cfg.mw_secondary_port || '80'; }
+        }
+        container.innerHTML =
+            pNode('primary', icon, color, '主库 (Primary)', `${mH}:${mP}`, '') +
+            pArrow('bi bi-arrow-right', '复制同步') +
+            pNode('secondary', icon, 'var(--slate-400)', '备库 (Standby)', `${sH}:${sP}`, '');
+        // 真实探测：异步更新节点状态着色
+        probeCfgHealth(cfg).then(h => {
+            const nodes = container.querySelectorAll('[data-probe-node]');
+            if (nodes.length >= 2) {
+                applyNodeState(nodes[0], h.main);
+                applyNodeState(nodes[1], h.standby);
+                const arrow = container.querySelector('.topology-arrow small');
+                if (arrow) {
+                    arrow.textContent = h.probing ? '检测中…' : (h.healthy ? '复制正常' : ((h.main === 'error' || h.standby === 'error' || h.standby === 'warning') ? '连接异常' : '状态未知'));
+                    arrow.style.color = h.healthy ? 'var(--teal-600)' : '#DC2626';
+                }
+            }
+        });
+    }
+}
+
+/**
+ * 选择配置后立即填充日志和步骤面板：让用户看到将要做什么
+ */
+function showConfigPreview() {
+    if (!selectedCfg) return;
+    const dt = selectedCfg.db_type;
+    const cfgName = selectedCfg.name;
+    const now = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+
+    // --- 填充日志面板 ---
+    const logEl = document.getElementById('logContainer');
+    const logPh = document.getElementById('logPlaceholder');
+    if (logPh) logPh.remove();
+    logEl.innerHTML = '';
+
+    appendLog({level:'info', msg:`[${now}] 已选择配置: ${cfgName} (${dt.toUpperCase()})`});
+    if (dt === 'oracle') {
+        const sub = selectedCfg.oracle_subtype || 'adg';
+        if (sub === 'rac') {
+            appendLog({level:'info', msg:`节点1: ${selectedCfg.rac_node1_host}/${selectedCfg.rac_node1_sid}`});
+            appendLog({level:'info', msg:`节点2: ${selectedCfg.rac_node2_host}/${selectedCfg.rac_node2_sid}`});
+            appendLog({level:'info', msg:`服务名: ${selectedCfg.rac_service_name}`});
+            appendLog({level:'info', msg:`账号: ${selectedCfg.oracle_user || selectedCfg.rac_user || 'oracle'}`});
+            appendLog({level:'info', msg:`连接模式: SYSDBA (RAC 切换通过 srvctl 完成)`});
+        } else {
+            appendLog({level:'info', msg:`主库: ${selectedCfg.oracle_primary_host}:${selectedCfg.oracle_primary_port}/${selectedCfg.oracle_primary_sid}`});
+            appendLog({level:'info', msg:`备库: ${selectedCfg.oracle_standby_host}:${selectedCfg.oracle_standby_port}/${selectedCfg.oracle_standby_sid}`});
+            appendLog({level:'info', msg:`账号: ${selectedCfg.oracle_user || 'sys'} · 连接模式: ${selectedCfg.oracle_connect_mode || 'SYSDBA'}`});
+        }
+    } else if (dt === 'mysql') {
+        const mySub = selectedCfg.mysql_subtype || 'replica';
+        if (mySub === 'mgr_single') {
+            appendLog({level:'info', msg:`当前 Primary: ${selectedCfg.master_host}:${selectedCfg.master_port}`});
+            appendLog({level:'info', msg:`目标 Primary: ${selectedCfg.slave_host}:${selectedCfg.slave_port}`});
+            appendLog({level:'info', msg:`模式: MySQL MGR 单主 · 用户: ${selectedCfg.mysql_user}`});
+        } else if (mySub === 'mgr_multi') {
+            appendLog({level:'info', msg:`节点1: ${selectedCfg.master_host}:${selectedCfg.master_port}`});
+            appendLog({level:'info', msg:`节点2: ${selectedCfg.slave_host}:${selectedCfg.slave_port}`});
+            appendLog({level:'info', msg:`模式: MySQL MGR 多主 · 请选择目标节点后执行关停演练`});
+        } else {
+            appendLog({level:'info', msg:`主库: ${selectedCfg.master_host}:${selectedCfg.master_port}`});
+            appendLog({level:'info', msg:`从库: ${selectedCfg.slave_host}:${selectedCfg.slave_port}`});
+            appendLog({level:'info', msg:`延迟阈值: ${selectedCfg.max_delay}s · 超时: ${selectedCfg.wait_timeout}s`});
+        }
+    } else if (dt === 'postgresql') {
+        appendLog({level:'info', msg:`主库: ${selectedCfg.pg_primary_host}:${selectedCfg.pg_primary_port}`});
+        appendLog({level:'info', msg:`备库: ${selectedCfg.pg_standby_host}:${selectedCfg.pg_standby_port}`});
+        appendLog({level:'info', msg:`账号: ${selectedCfg.pg_user} · 延迟阈值: ${selectedCfg.max_delay}s`});
+    } else if (dt === 'redis') {
+        appendLog({level:'info', msg:`主库: ${selectedCfg.redis_master_host}:${selectedCfg.redis_master_port}`});
+        appendLog({level:'info', msg:`从库: ${selectedCfg.redis_slave_host}:${selectedCfg.redis_slave_port}`});
+        appendLog({level:'info', msg:`无 Sentinel · 通过 SLAVEOF NO ONE 完成切换`});
+    } else if (dt === 'dameng') {
+        const dmSub = selectedCfg.dameng_subtype || 'standby';
+        if (dmSub === 'dsc') {
+            appendLog({level:'info', msg:`DSC 集群 · 服务关停测试`});
+            appendLog({level:'info', msg:`节点1: ${selectedCfg.dm_dsc_node1_host}:${selectedCfg.dm_dsc_node1_port}`});
+            appendLog({level:'info', msg:`节点2: ${selectedCfg.dm_dsc_node2_host}:${selectedCfg.dm_dsc_node2_port}`});
+            appendLog({level:'info', msg:`服务名: ${selectedCfg.dm_dsc_service_name}`});
+            appendLog({level:'info', msg:`流程：关停节点2 → 验证业务 → 恢复节点2`});
+        } else {
+            appendLog({level:'info', msg:`主库: ${selectedCfg.dm_primary_host}:${selectedCfg.dm_primary_port}/${selectedCfg.dm_primary_sid || 'DMSERVER01'}`});
+            appendLog({level:'info', msg:`备库: ${selectedCfg.dm_standby_host}:${selectedCfg.dm_standby_port}/${selectedCfg.dm_standby_sid || 'DMSERVER02'}`});
+            appendLog({level:'info', msg:`账号: ${selectedCfg.dm_user || 'SYSDBA'}`});
+        }
+    } else if (dt === 'kingbase') {
+        const kbSub = selectedCfg.kingbase_subtype || 'standby';
+        if (kbSub === 'kdc') {
+            appendLog({level:'info', msg:`KDC 集群 · 服务关停测试`});
+            appendLog({level:'info', msg:`节点1: ${selectedCfg.kb_kdc_node1_host}:${selectedCfg.kb_kdc_node1_port}`});
+            appendLog({level:'info', msg:`节点2: ${selectedCfg.kb_kdc_node2_host}:${selectedCfg.kb_kdc_node2_port}`});
+            appendLog({level:'info', msg:`服务名: ${selectedCfg.kb_kdc_service_name}`});
+            appendLog({level:'info', msg:`流程：关停节点2 → 验证业务 → 恢复节点2`});
+        } else {
+            appendLog({level:'info', msg:`主库: ${selectedCfg.kb_primary_host}:${selectedCfg.kb_primary_port}`});
+            appendLog({level:'info', msg:`备库: ${selectedCfg.kb_standby_host}:${selectedCfg.kb_standby_port}`});
+            appendLog({level:'info', msg:`账号: ${selectedCfg.kb_user || 'SYSTEM'}`});
+        }
+    }
+    appendLog({level:'info', msg:'等待用户点击「开始切换」或「演习模式」...'});
+
+    // --- 填充步骤面板 ---
+    const stepsEl = document.getElementById('stepsContainer');
+    const stepsPh = document.getElementById('stepsPlaceholder');
+    if (stepsPh) stepsPh.remove();
+    stepsEl.innerHTML = '';
+    const planSteps = getPlannedSteps(dt);
+    planSteps.forEach((s, i) => {
+        const div = document.createElement('div');
+        div.className = 'step-item pending';
+        div.innerHTML = `
+            <div class="step-num">${i+1}</div>
+            <div class="step-content">
+                <div class="step-title">${s.title}</div>
+                <div class="step-desc">${s.desc}</div>
+            </div>
+            <div class="step-status"><span class="step-badge pending">待执行</span></div>
+        `;
+        stepsEl.appendChild(div);
+    });
+}
+
+/**
+ * 根据 db_type 返回预演步骤列表
+ */
+function getPlannedSteps(dt) {
+    if (dt === 'mysql') {
+        const mySub = (selectedCfg && selectedCfg.mysql_subtype) || 'replica';
+        if (mySub === 'mgr_single') {
+            return [
+                {title:'集群状态检查', desc:'查询 performance_schema.replication_group_members 确认成员 ONLINE'},
+                {title:'定位目标 Primary', desc:'根据 slave_host 匹配 SECONDARY 成员的 MEMBER_ID'},
+                {title:'执行 Primary 切换', desc:'SELECT group_replication_set_as_primary(member_id)'},
+                {title:'验证新 Primary', desc:'连接目标节点确认 MEMBER_ROLE=PRIMARY'},
+                {title:'业务验证', desc:'执行 SELECT 1 确认新 Primary 可读写'},
+            ];
+        }
+        if (mySub === 'mgr_multi') {
+            return [
+                {title:'集群状态检查', desc:'查询组复制成员状态，确认所有节点 ONLINE'},
+                {title:'节点1业务验证', desc:'连接节点1执行 SELECT 1 确认业务正常'},
+                {title:'停止节点2服务', desc:'STOP GROUP_REPLICATION 模拟节点2故障'},
+                {title:'验证节点1可用性', desc:'节点1独立承载业务，确认读写正常'},
+                {title:'恢复节点2服务', desc:'START GROUP_REPLICATION 恢复节点2'},
+                {title:'验证集群恢复', desc:'确认所有成员重新 ONLINE'},
+            ];
+        }
+        return [
+            {title:'前置检查', desc:'SHOW SLAVE STATUS 验证复制健康度'},
+            {title:'停止从库复制', desc:'STOP SLAVE 阻塞主从同步'},
+            {title:'重置主库信息', desc:'RESET SLAVE; CHANGE MASTER TO ...'},
+            {title:'启动新主库', desc:'原从库提升为新主库 (STOP SLAVE; RESET SLAVE ALL)'},
+            {title:'原主库指向新主', desc:'CHANGE MASTER TO 指向新的 master_host/port'},
+            {title:'启动复制', desc:'START SLAVE 验证 Seconds_Behind_Master=0'},
+        ];
+    } else if (dt === 'oracle') {
+        const sub = (selectedCfg && selectedCfg.oracle_subtype) || 'adg';
+        if (sub === 'rac') {
+            return [
+                {title:'集群状态检查', desc:'srvctl status database -d <service>'},
+                {title:'节点角色验证', desc:'crsctl stat res ora.<db>.db，确认当前活动实例'},
+                {title:'应用连接切换', desc:'修改 SCAN/VIP 资源指向目标节点'},
+                {title:'目标节点激活', desc:'srvctl relocate service / 实例迁移'},
+                {title:'验证新活动节点', desc:'SELECT INSTANCE_NAME, STATUS FROM V$INSTANCE'},
+            ];
+        }
+        return [
+            {title:'主库角色检查', desc:'SELECT DATABASE_ROLE FROM V$DATABASE (期望 PRIMARY)'},
+            {title:'备库角色检查', desc:'SELECT DATABASE_ROLE FROM V$DATABASE (期望 PHYSICAL STANDBY)'},
+            {title:'主库切到备库', desc:'ALTER DATABASE COMMIT TO SWITCHOVER TO STANDBY'},
+            {title:'备库切到主库', desc:'ALTER DATABASE COMMIT TO SWITCHOVER TO PRIMARY'},
+            {title:'新主库启动复制', desc:'ALTER DATABASE RECOVER MANAGED STANDBY DATABASE'},
+            {title:'切换后角色验证', desc:'SELECT DATABASE_ROLE, OPEN_MODE FROM V$DATABASE'},
+        ];
+    } else if (dt === 'postgresql') {
+        return [
+            {title:'主库状态检查', desc:'SELECT pg_is_in_recovery() (期望 false)'},
+            {title:'备库状态检查', desc:'SELECT pg_is_in_recovery() (期望 true), pg_last_wal_replay_lsn()'},
+            {title:'备库提升', desc:'pg_ctl promote 或 SELECT pg_promote()'},
+            {title:'原主库重建为备库', desc:'pg_basebackup + recovery.conf 指向新主'},
+            {title:'复制验证', desc:'pg_stat_replication 验证 WAL 应用进度'},
+        ];
+    } else if (dt === 'redis') {
+        return [
+            {title:'主从状态检查', desc:'INFO replication 确认 master_link_status:up'},
+            {title:'从库角色升级', desc:'SLAVEOF NO ONE 解除复制关系'},
+            {title:'应用配置更新', desc:'更新客户端连接池指向新主'},
+            {title:'原主降级为从', desc:'SLAVEOF <new_master> <port> 重建复制'},
+            {title:'数据同步验证', desc:'INFO replication master_link_status=up, offset 一致'},
+        ];
+    } else if (dt === 'dameng') {
+        const dmSub = (selectedCfg && selectedCfg.dameng_subtype) || 'standby';
+        if (dmSub === 'dsc') {
+            return [
+                {title:'DSC 集群状态检查', desc:'DmServiceDSC status 确认双节点在线'},
+                {title:'关停前业务确认', desc:'SELECT COUNT(*) 确认集群业务读写正常'},
+                {title:'关停节点2 服务', desc:'DmServiceDSC stop（节点2）'},
+                {title:'验证节点2 关停', desc:'验证业务在节点1 上是否正常运行'},
+                {title:'启动节点2 服务', desc:'DmServiceDSC start（节点2）'},
+                {title:'验证集群恢复', desc:'确认双节点均在线 + 业务正常'},
+            ];
+        }
+        return [
+            {title:'前置检查', desc:'主备库连接 + 归档模式校验'},
+            {title:'角色与归档校验', desc:'SELECT DATABASE_ROLE 确认主=PRIMARY 备=STANDBY'},
+            {title:'主库 SWITCHOVER', desc:'ALTER DATABASE PREPARE FOR SWITCHOVER; ALTER DATABASE SWITCHOVER TO STANDBY'},
+            {title:'备库提升', desc:'ALTER DATABASE SWITCHOVER TO PRIMARY'},
+            {title:'切换结果验证', desc:'确认角色互换 + 归档同步正常'},
+            {title:'新备库启动复制', desc:'ALTER DATABASE OPEN FORCE'},
+        ];
+    } else if (dt === 'kingbase') {
+        const kbSub = (selectedCfg && selectedCfg.kingbase_subtype) || 'standby';
+        if (kbSub === 'kdc') {
+            return [
+                {title:'KDC 集群状态检查', desc:'sys_ctl status 确认双节点在线'},
+                {title:'关停前业务确认', desc:'SELECT COUNT(*) 确认集群业务读写正常'},
+                {title:'关停节点2 服务', desc:'sys_ctl stop -D /data/kingbase（节点2）'},
+                {title:'验证节点2 关停', desc:'验证业务在节点1 上是否正常运行'},
+                {title:'启动节点2 服务', desc:'sys_ctl start -D /data/kingbase（节点2）'},
+                {title:'验证集群恢复', desc:'确认双节点均在线 + 业务正常'},
+            ];
+        }
+        return [
+            {title:'前置检查', desc:'SELECT version() 确认连接 + sys_stat_replication'},
+            {title:'流复制延迟校验', desc:'确认复制槽状态 streaming + WAL 一致'},
+            {title:'主库 CHECKPOINT', desc:'CHECKPOINT; ALTER SYSTEM SET read_only=ON'},
+            {title:'备库提升', desc:'sys_ctl promote 提升为新主库'},
+            {title:'切换验证', desc:'SELECT pg_is_in_recovery() 确认新主可读写'},
+            {title:'旧主加入复制', desc:'sys_rewind + 重新加入流复制'},
+        ];
+    }
+    return [{title:'准备切换', desc:'点击「开始切换」执行'}];
+}
+
+function startSwitchover(dryRun = false) {
+    if (!selectedCfg) { alert('请先选择配置'); return; }
+    if (switchRunning) { alert('切换正在进行中'); return; }
+
+    const force = document.getElementById('chkForce').checked;
+    const dbType = selectedCfg.db_type;
+    // 能力通用化：统一切换路由按 db_type + 子类型在服务端分发
+    const apiPath = `/api/db/switchover/${selectedCfg.id}/stream`;
+    const sub = selectedCfg.mysql_subtype || selectedCfg.oracle_subtype || selectedCfg.dameng_subtype ||
+        selectedCfg.kingbase_subtype || selectedCfg.opengauss_subtype || selectedCfg.oceanbase_subtype ||
+        selectedCfg.tidb_subtype || selectedCfg.mongodb_subtype || '';
+    const cfgMode = calcClusterMode(dbType, sub);
+    const isShutdown = cfgMode === 'shutdown';
+
+    const params = new URLSearchParams({ force: force ? '1':'0', dry_run: dryRun ? '1':'0' });
+    if (isShutdown) {
+        const targetNode = document.querySelector('input[name="targetNode"]:checked')?.value || 'node2';
+        params.set('target_node', targetNode);
+    }
+
+    switchRunning = true;
+    document.getElementById('switchStatus').style.display = '';
+    document.getElementById('btnStartSwitch').disabled = true;
+    document.getElementById('btnDryRun').disabled = true;
+    document.getElementById('reportActions').style.display = 'none';
+    document.getElementById('statusText').textContent = dryRun ? '演习模式运行中...' : '切换执行中...';
+    const subText = sub ? `(${sub})` : '';
+    const targetText = isShutdown ? ` · 目标节点: ${document.querySelector('input[name="targetNode"]:checked')?.value || 'node2'}` : '';
+    document.getElementById('statusSub').textContent = `类型: ${dbType.toUpperCase()}${subText}${targetText}`;
+    document.getElementById('statusIcon').innerHTML = '<i class="bi bi-arrow-repeat" style="animation:step-pulse 1.5s infinite"></i>';
+    document.getElementById('statusBadge').innerHTML = '<span class="badge badge-warning">执行中</span>';
+
+    // 清空
+    const logEl = document.getElementById('logContainer');
+    logEl.innerHTML = '';
+    document.getElementById('stepsContainer').innerHTML = '';
+    document.getElementById('resultTopology').style.display = 'none';
+    let logCount = 0;
+
+    fetch(apiPath + '?' + params)
+    .then(resp => {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        function read() {
+            reader.read().then(({done, value}) => {
+                if (done) {
+                    // 处理最后残留的未换行数据
+                    if (buffer.trim()) handleSseLine(buffer);
+                    onSwitchDone();
+                    return;
+                }
+                buffer += decoder.decode(value, {stream:true});
+                let idx;
+                while ((idx = buffer.indexOf('\n')) >= 0) {
+                    const line = buffer.slice(0, idx);
+                    buffer = buffer.slice(idx + 1);
+                    handleSseLine(line);
+                }
+                read();
+            }).catch(err => {
+                appendLog({level:'error', msg:'流读取失败: ' + err.message});
+                onSwitchDone();
+            });
+        }
+        function handleSseLine(line) {
+            if (!line.startsWith('data: ')) return;
+            try {
+                const data = JSON.parse(line.slice(6));
+                if (data.level === 'done') {
+                    let info = {};
+                    try { info = JSON.parse(data.msg); } catch(e) { /* 兼容旧格式：非 JSON 时按无详情处理 */ }
+                    onSwitchComplete(info);
+                } else {
+                    appendLog(data);
+                }
+            } catch(e) {
+                // 解析失败也恢复按钮状态，避免界面卡死
+                onSwitchDone();
+            }
+        }
+        read();
+    })
+    .catch(err => {
+        appendLog({level:'error', msg:'请求失败: ' + err.message});
+        onSwitchDone();
+    });
+}
+
+function startDryRun() { startSwitchover(true); }
+
+function appendLog(data) {
+    const logEl = document.getElementById('logContainer');
+    // 移除占位文本
+    if (logEl.children.length === 1 && logEl.children[0].tagName === 'DIV' && logEl.children[0].style.textAlign === 'center') {
+        logEl.innerHTML = '';
+    }
+    const div = document.createElement('div');
+    div.className = 'log-line log-' + (data.level || 'info');
+    div.textContent = (data.level ? '[' + data.level.toUpperCase() + '] ' : '') + (data.msg || '');
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function onSwitchComplete(info) {
+    const isOk = info && info.success;
+    document.getElementById('statusText').textContent = isOk ? '切换成功!' : '切换失败';
+    document.getElementById('statusIcon').innerHTML = isOk
+        ? '<i class="bi bi-check-circle-fill" style="color:var(--success);font-size:1.5rem"></i>'
+        : '<i class="bi bi-x-circle-fill" style="color:var(--danger);font-size:1.5rem"></i>';
+    document.getElementById('statusBadge').innerHTML = isOk
+        ? '<span class="badge badge-success">成功</span>'
+        : '<span class="badge badge-danger">失败</span>';
+
+    // 显示拓扑
+    if (info && info.success && selectedCfg) {
+        (async () => {
+            let switchInfo = null;
+            if (info.task_id) {
+                try {
+                    const r = await fetch('/api/history/' + info.task_id).then(r => r.json());
+                    if (r.ok && r.history) switchInfo = r.history;
+                } catch(e) {}
+            }
+            showTopology(switchInfo);
+        })();
+    }
+
+    if (info && info.task_id) {
+        document.getElementById('statusSub').innerHTML += ` | 任务: <a href="/logs/${info.task_id}">${info.task_id}</a>`;
+        // 显示报告下载按钮
+        const reportActions = document.getElementById('reportActions');
+        reportActions.style.display = 'flex';
+        document.getElementById('btnReportPdf').href = `/api/history/${info.task_id}/report.pdf`;
+        document.getElementById('btnReportWord').href = `/api/history/${info.task_id}/report.docx`;
+    }
+    onSwitchDone();
+}
+
+function showTopology(switchInfo) {
+    const topoRow = document.getElementById('topoRow');
+    const cfg = selectedCfg;
+    const dt = cfg.db_type;
+    let sub = '';
+    if (dt === 'mysql') sub = cfg.mysql_subtype || 'replica';
+    else if (dt === 'oracle') sub = cfg.oracle_subtype || 'adg';
+    else if (dt === 'dameng') sub = cfg.dameng_subtype || 'standby';
+    else if (dt === 'kingbase') sub = cfg.kingbase_subtype || 'standby';
+    else if (dt === 'opengauss') sub = cfg.opengauss_subtype || 'standby';
+    else if (dt === 'oceanbase') sub = cfg.oceanbase_subtype || 'standby';
+    else if (dt === 'tidb') sub = cfg.tidb_subtype || 'standby';
+    else if (dt === 'mongodb') sub = cfg.mongodb_subtype || 'replica';
+    else if (dt === 'highgo') sub = 'standby';
+    const isShutdown = calcClusterMode(dt, sub) === 'shutdown';
+
+    // 切换完成后，优先使用历史记录里的新拓扑
+    const nmHost = switchInfo ? (switchInfo.new_master_host || '') : '';
+    const nmPort = switchInfo ? (switchInfo.new_master_port || '') : '';
+    const nsHost = switchInfo ? (switchInfo.new_slave_host || '') : '';
+    const nsPort = switchInfo ? (switchInfo.new_slave_port || '') : '';
+    const hasNewTopo = !!(nmHost && nsHost);
+    const targetNode = switchInfo ? (switchInfo.target_node || 'node2') : 'node2';
+
+    // ─── 拓扑节点生成器 ───
+    function topoNode(role, icon, iconColor, label, host, tag) {
+        return `<div class="topology-node ${role}">
+            <i class="${icon}" style="color:${iconColor}"></i>
+            <div class="label"><span class="role-dot"></span>${label}</div>
+            <div class="host">${host}</div>
+            ${tag ? `<div class="tag">${tag}</div>` : ''}
+        </div>`;
+    }
+
+    // ─── 切换箭头（带流动动画） ───
+    function topoArrow(icon, label) {
+        return `<div class="topology-arrow">
+            <i class="${icon}"></i>
+            <div class="topology-flow-line"></div>
+            <small>${label}</small>
+        </div>`;
+    }
+
+    // ─── 集群关停拓扑（双节点平等） ───
+    function topoCluster(icon, iconColor, node1Label, node1Host, node1Tag, node2Label, node2Host, node2Tag) {
+        return `
+        <div class="topology-node primary">
+            <i class="${icon}" style="color:${iconColor}"></i>
+            <div class="label"><span class="role-dot"></span>${node1Label}</div>
+            <div class="host">${node1Host}</div>
+            <div class="tag">${node1Tag}</div>
+        </div>
+        ${topoArrow('bi bi-arrow-left-right', 'HA 验证')}
+        <div class="topology-node primary">
+            <i class="${icon}" style="color:${iconColor}"></i>
+            <div class="label"><span class="role-dot"></span>${node2Label}</div>
+            <div class="host">${node2Host}</div>
+            <div class="tag">${node2Tag}</div>
+        </div>`;
+    }
+
+    // ─── 主备切换拓扑 ───
+    function topoSwitch(icon, iconColor, newMaster, newMasterTag, newSlave, newSlaveTag, dbLabel) {
+        return `
+        <div class="topology-node secondary">
+            <i class="${icon}" style="color:var(--slate-400)"></i>
+            <div class="label"><span class="role-dot"></span>${dbLabel}新备库 (原主库)</div>
+            <div class="host">${newSlave}</div>
+            ${newSlaveTag ? `<div class="tag">${newSlaveTag}</div>` : ''}
+        </div>
+        ${topoArrow('bi bi-arrow-left-right', '切换完成')}
+        <div class="topology-node primary">
+            <i class="${icon}" style="color:${iconColor}"></i>
+            <div class="label"><span class="role-dot"></span>${dbLabel}新主库 (原备库)</div>
+            <div class="host">${newMaster}</div>
+            ${newMasterTag ? `<div class="tag">${newMasterTag}</div>` : ''}
+        </div>`;
+    }
+
+    // ═══ 按数据库类型生成拓扑 ═══
+    if (dt === 'oracle' && sub === 'rac') {
+        const node1Down = targetNode === 'node1';
+        const node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster(
+            'bi bi-diagram-3', '#7C3AED',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.rac_node1_host || '-'}:${cfg.rac_node1_port || '1521'}`,
+            node1Down ? '关停演练完成' : 'RAC 验证通过',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.rac_node2_host || '-'}:${cfg.rac_node2_port || '1521'}`,
+            node2Down ? '关停演练完成' : 'RAC 验证通过'
+        );
+    } else if (dt === 'oracle') {
+        topoRow.innerHTML = topoSwitch('bi bi-database-fill-lock', '#7C3AED',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.oracle_standby_host || '-'}:${cfg.oracle_standby_port || '1521'}`,
+            cfg.oracle_standby_sid || '-',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.oracle_primary_host || '-'}:${cfg.oracle_primary_port || '1521'}`,
+            cfg.oracle_primary_sid || '-', 'Oracle ');
+    } else if (dt === 'postgresql') {
+        topoRow.innerHTML = topoSwitch('bi bi-server', 'var(--teal-600)',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.pg_standby_host || '-'}:${cfg.pg_standby_port || '5432'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.pg_primary_host || '-'}:${cfg.pg_primary_port || '5432'}`, '', 'PG ');
+    } else if (dt === 'redis') {
+        topoRow.innerHTML = topoSwitch('bi bi-lightning-fill', '#DC2626',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.redis_slave_host || '-'}:${cfg.redis_slave_port || '6379'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.redis_master_host || '-'}:${cfg.redis_master_port || '6379'}`, '', 'Redis ');
+    } else if (dt === 'dameng' && sub === 'dsc') {
+        const node1Down = targetNode === 'node1', node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster('bi bi-diagram-3', '#BE123C',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.dm_dsc_node1_host || '-'}:${cfg.dm_dsc_node1_port || '5236'}`,
+            node1Down ? '关停演练完成' : 'DSC 验证通过',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.dm_dsc_node2_host || '-'}:${cfg.dm_dsc_node2_port || '5236'}`,
+            node2Down ? '关停演练完成' : 'DSC 验证通过');
+    } else if (dt === 'dameng') {
+        topoRow.innerHTML = topoSwitch('bi bi-database', '#BE123C',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.dm_standby_host || cfg.slave_host || '-'}:${cfg.dm_standby_port || cfg.slave_port || '5236'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.dm_primary_host || cfg.master_host || '-'}:${cfg.dm_primary_port || cfg.master_port || '5236'}`, '', '达梦 ');
+    } else if (dt === 'kingbase' && sub === 'kdc') {
+        const node1Down = targetNode === 'node1', node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster('bi bi-shield-lock', '#0369A1',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.kb_kdc_node1_host || '-'}:${cfg.kb_kdc_node1_port || '54321'}`,
+            node1Down ? '关停演练完成' : 'KDC 验证通过',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.kb_kdc_node2_host || '-'}:${cfg.kb_kdc_node2_port || '54321'}`,
+            node2Down ? '关停演练完成' : 'KDC 验证通过');
+    } else if (dt === 'kingbase') {
+        topoRow.innerHTML = topoSwitch('bi bi-shield-lock', '#0369A1',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.kb_standby_host || cfg.slave_host || '-'}:${cfg.kb_standby_port || cfg.slave_port || '54321'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.kb_primary_host || cfg.master_host || '-'}:${cfg.kb_primary_port || cfg.master_port || '54321'}`, '', '金仓 ');
+    } else if (dt === 'opengauss' && sub === 'cluster') {
+        const node1Down = targetNode === 'node1', node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster('bi bi-hdd-network', '#6D28D9',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.og_cluster_node1_host || cfg.og_primary_host || '-'}:${cfg.og_cluster_node1_port || cfg.og_primary_port || '5432'}`,
+            node1Down ? '关停演练完成' : 'CM 验证通过',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.og_cluster_node2_host || cfg.og_standby_host || '-'}:${cfg.og_cluster_node2_port || cfg.og_standby_port || '5432'}`,
+            node2Down ? '关停演练完成' : 'CM 验证通过');
+    } else if (dt === 'opengauss') {
+        topoRow.innerHTML = topoSwitch('bi bi-hdd-network', '#6D28D9',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.og_standby_host || '-'}:${cfg.og_standby_port || '5432'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.og_primary_host || '-'}:${cfg.og_primary_port || '5432'}`, '', 'OG ');
+    } else if (dt === 'oceanbase' && sub === 'cluster') {
+        const node1Down = targetNode === 'node1', node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster('bi bi-cloud-arrow-up', '#B45309',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.ob_cluster_node1_host || cfg.ob_primary_host || '-'}:${cfg.ob_cluster_node1_port || cfg.ob_primary_port || '2881'}`,
+            node1Down ? 'Observer 已隔离恢复' : 'OB 集群正常',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.ob_cluster_node2_host || cfg.ob_standby_host || '-'}:${cfg.ob_cluster_node2_port || cfg.ob_standby_port || '2881'}`,
+            node2Down ? 'Observer 已隔离恢复' : 'OB 集群正常');
+    } else if (dt === 'oceanbase') {
+        topoRow.innerHTML = topoSwitch('bi bi-cloud-arrow-up', '#B45309',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.ob_standby_host || '-'}:${cfg.ob_standby_port || '2881'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.ob_primary_host || '-'}:${cfg.ob_primary_port || '2881'}`, '', 'OB ');
+    } else if (dt === 'tidb' && sub === 'cluster') {
+        const node1Down = targetNode === 'node1', node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster('bi bi-distribute-vertical', '#BE185D',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.tidb_cluster_node1_host || cfg.tidb_primary_host || '-'}:${cfg.tidb_cluster_node1_port || cfg.tidb_primary_port || '4000'}`,
+            node1Down ? 'PD Leader 已转移' : 'TiDB 调度正常',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.tidb_cluster_node2_host || cfg.tidb_standby_host || '-'}:${cfg.tidb_cluster_node2_port || cfg.tidb_standby_port || '4000'}`,
+            node2Down ? 'PD Leader 已转移' : 'TiDB 调度正常');
+    } else if (dt === 'tidb') {
+        topoRow.innerHTML = topoSwitch('bi bi-distribute-vertical', '#BE185D',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.tidb_standby_host || '-'}:${cfg.tidb_standby_port || '4000'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.tidb_primary_host || '-'}:${cfg.tidb_primary_port || '4000'}`, '', 'TiDB ');
+    } else if (dt === 'mongodb' && sub === 'cluster') {
+        const node1Down = targetNode === 'node1', node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster('bi bi-database', '#047857',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.mongo_cluster_node1_host || cfg.mongo_primary_host || '-'}:${cfg.mongo_cluster_node1_port || 27017}`,
+            node1Down ? 'mongod 已关停恢复' : '副本集正常',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.mongo_cluster_node2_host || cfg.mongo_standby_host || '-'}:${cfg.mongo_cluster_node2_port || 27017}`,
+            node2Down ? 'mongod 已关停恢复' : '副本集正常');
+    } else if (dt === 'mongodb') {
+        topoRow.innerHTML = topoSwitch('bi bi-database', '#047857',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.mongo_standby_host || '-'}:${cfg.mongo_standby_port || 27017}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.mongo_primary_host || '-'}:${cfg.mongo_primary_port || 27017}`, '', 'Mongo ');
+    } else if (dt === 'highgo') {
+        topoRow.innerHTML = topoSwitch('bi bi-hdd-stack', '#0369A1',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.hg_standby_host || '-'}:${cfg.hg_standby_port || '5432'}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.hg_primary_host || '-'}:${cfg.hg_primary_port || '5432'}`, '', '瀚高 ');
+    } else if (dt === 'mysql' && sub === 'mgr_multi') {
+        const node1Down = targetNode === 'node1', node2Down = targetNode === 'node2';
+        topoRow.innerHTML = topoCluster('bi bi-database-fill-gear', 'var(--teal-600)',
+            `节点1 ${node1Down ? '(已恢复)' : '(正常)'}`, `${cfg.master_host}:${cfg.master_port}`,
+            node1Down ? '关停演练完成' : 'MGR 多主验证通过',
+            `节点2 ${node2Down ? '(已恢复)' : '(正常)'}`, `${cfg.slave_host}:${cfg.slave_port}`,
+            node2Down ? '关停演练完成' : 'MGR 多主验证通过');
+    } else if (dt === 'mysql' && sub === 'mgr_single') {
+        topoRow.innerHTML = topoSwitch('bi bi-database-fill-gear', 'var(--teal-600)',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.slave_host}:${cfg.slave_port}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.master_host}:${cfg.master_port}`, '', 'MGR ');
+    } else {
+        // MySQL 普通主从
+        topoRow.innerHTML = topoSwitch('bi bi-database-fill-gear', 'var(--teal-600)',
+            hasNewTopo ? `${nmHost}:${nmPort}` : `${cfg.slave_host}:${cfg.slave_port}`, '',
+            hasNewTopo ? `${nsHost}:${nsPort}` : `${cfg.master_host}:${cfg.master_port}`, '', '');
+    }
+
+    document.getElementById('resultTopology').style.display = '';
+}
+
+function onSwitchDone() {
+    switchRunning = false;
+    document.getElementById('btnStartSwitch').disabled = false;
+    document.getElementById('btnDryRun').disabled = false;
+}
+
+async function checkGenericStatus(cfgId) {
+    try {
+        const resp = await fetch(`/api/db/status/${cfgId}`).then(r => r.json());
+        let msg = '';
+        if (resp.primary) {
+            msg += `主节点: ${resp.primary.ok ? '✓' : '✗'} ${resp.primary.version || resp.primary.error || ''}\n`;
+        }
+        if (resp.standby) {
+            msg += `备节点: ${resp.standby.ok ? '✓' : '✗'} ${resp.standby.version || resp.standby.error || ''}`;
+        }
+        if (window.showToast) {
+            showToast(msg || '状态查询完成', resp.primary && resp.primary.ok ? 'success' : 'error');
+        } else {
+            alert(msg || '状态查询完成');
+        }
+    } catch(e) {
+        if (window.showToast) showToast('状态检查失败: ' + (e.message||e), 'error');
+        else alert('状态检查失败: ' + (e.message||e));
+    }
+}
+
+// 中间件状态检查
+async function checkMwStatus(cfgId) {
+    try {
+        const resp = await fetch(`/api/db/status/${cfgId}`).then(r => r.json());
+        let msg = '';
+        if (resp.mw_type) msg += `类型: ${resp.mw_type}\n`;
+        if (resp.primary_host) msg += `主节点 ${resp.primary_host}:${resp.primary_port}: ${resp.primary_status || '?'}\n`;
+        if (resp.secondary_host) msg += `备节点 ${resp.secondary_host}:${resp.secondary_port}: ${resp.secondary_status || '?'}\n`;
+        if (resp.node1_status) msg += `节点1: ${resp.node1_status}\n`;
+        if (resp.node2_status) msg += `节点2: ${resp.node2_status}\n`;
+        if (window.showToast) {
+            showToast(msg || '中间件状态查询完成', 'info');
+        } else {
+            alert(msg || '中间件状态查询完成');
+        }
+    } catch(e) {
+        if (window.showToast) showToast('中间件状态检查失败: ' + (e.message||e), 'error');
+        else alert('中间件状态检查失败: ' + (e.message||e));
+    }
+}
+
+function clearLogs() {
+    const logEl = document.getElementById('logContainer');
+    logEl.innerHTML = '<div id="logPlaceholder" style="color:var(--slate-600);text-align:center;padding:40px"><i class="bi bi-terminal" style="font-size:2rem;display:block;margin-bottom:8px"></i>日志已清空</div>';
+}
+
+async function testOracleStatus(id) {
+    const cfg = allConfigs.find(c => c.id == id);
+    try {
+        const r = await fetch(`/api/db/status/${id}`).then(r => r.json());
+        let info = '';
+        const subtypeText = cfg && cfg.oracle_subtype === 'rac' ? 'RAC' : 'ADG';
+        const roles = (cfg && cfg.oracle_subtype === 'rac') ? ['node1','node2'] : ['primary','standby'];
+        roles.forEach(role => {
+            const s = r[role];
+            info += `=== ${role.toUpperCase()} ===\n`;
+            if (s && s.ok) {
+                info += `角色: ${s.database_role || s.role || 'unknown'}\n切换状态: ${s.switchover_status || '-'}\n模式: ${s.open_mode || '-'}\n保护: ${s.protection_mode || '-'}\n`;
+            } else {
+                info += `错误: ${(s&&s.error) || 'unknown'}\n`;
+            }
+            info += '\n';
+        });
+        alert(`【Oracle ${subtypeText}】\n` + info);
+    } catch(e) { alert('请求失败: ' + e.message); }
+}
+
+async function testMysqlRepl(id) {
+    // 统一状态契约：MySQL 复制状态在 standby 节点中带 io_running/sql_running/lag_seconds
+    try {
+        const r = await fetch(`/api/db/status/${id}`).then(r => r.json());
+        if (!r.ok) { alert('状态查询失败: ' + (r.error || 'unknown')); return; }
+        const st = r.standby || {};
+        if (!st.io_running && !st.error) { alert('未获取到复制明细，请检查从库复制状态'); return; }
+        if (st.error && !st.io_running) { alert('复制状态异常: ' + st.error); return; }
+        alert(`复制状态\nIO: ${st.io_running}\nSQL: ${st.sql_running}\n延迟: ${st.lag_seconds}s`);
+    } catch(e) { alert('请求失败: ' + e.message); }
+}
+
+/** 应用节点状态着色：st-ok=正常 / st-err=异常 / st-unk=未配置 */
+function applyNodeState(nodeEl, state) {
+    if (!nodeEl) return;
+    nodeEl.classList.remove('st-ok', 'st-err', 'st-unk');
+    const roleDot = nodeEl.querySelector('.role-dot');
+    if (state === 'ok') {
+        nodeEl.classList.add('st-ok');
+        if (roleDot) { roleDot.style.background = '#10B981'; roleDot.style.animation = 'none'; }
+    } else if (state === 'error' || state === 'warning') {
+        nodeEl.classList.add('st-err');
+        if (roleDot) { roleDot.style.background = state === 'warning' ? '#F59E0B' : '#DC2626'; roleDot.style.animation = 'none'; }
+    } else {
+        nodeEl.classList.add('st-unk');
+        if (roleDot) { roleDot.style.background = '#94A3B8'; roleDot.style.animation = 'none'; }
+    }
+}
+
+/** 真实状态探测：选中配置后自动执行，返回 {main, standby, healthy} */
+async function probeCfgHealth(cfg) {
+    const dt = cfg.db_type;
+    const out = {main: null, standby: null, healthy: false, probing: true};
+    try {
+        // 能力通用化：统一状态路由按 db_type 分发，契约 {ok, primary, standby, healthy, summary}
+        const s = await fetch(`/api/db/status/${cfg.id}`).then(r => r.json()).catch(() => ({}));
+        if (typeof s.healthy === 'boolean') {
+            const pOk = s.primary && s.primary.ok;
+            const sOk = s.standby && s.standby.ok;
+            out.main = pOk ? 'ok' : 'error';
+            out.standby = sOk ? 'ok' : 'error';
+            out.healthy = s.healthy;
+            if (s.summary) out.summary = s.summary;
+        } else {
+            // 回退：旧接口未标准化时遍历节点 ok 统计
+            const nodes = Object.keys(s).filter(k => !['ok','error','cluster_type','status','summary','healthy'].includes(k));
+            let okCount = 0, errCount = 0;
+            nodes.forEach(k => { if (s[k] && s[k].ok) okCount++; else errCount++; });
+            out.main = okCount > 0 ? 'ok' : (errCount > 0 ? 'error' : 'unknown');
+            out.standby = errCount > 0 ? 'error' : (okCount > 0 ? 'ok' : 'unknown');
+            out.healthy = okCount > 0 && errCount === 0;
+        }
+    } catch(e) { out.healthy = false; }
+    out.probing = false;
+    return out;
+}
+
+async function checkPgStatus(id) {
+    const cfg = allConfigs.find(c => c.id == id);
+    if (!cfg) return;
+    try {
+        const r=await fetch(`/api/db/status/${id}`).then(r=>r.json());
+        let info='';
+        ['primary','standby'].forEach(role=>{
+            const s=r[role];
+            info+=`--- ${role.toUpperCase()} ---\n`;
+            if(s&&s.ok)info+=`角色: ${s.role}\n版本: ${s.version||''}\n`;
+            else info+=`错误: ${(s&&s.error)||'unknown'}\n`;
+            info+='\n';
+        });
+        alert(info);
+    }catch(e){alert('请求失败: '+e.message);}
+}
+
+async function checkRedisStatus(id) {
+    const cfg = allConfigs.find(c => c.id == id);
+    if (!cfg) return;
+    try {
+        const r=await fetch(`/api/db/status/${id}`).then(r=>r.json());
+        if(r.ok){
+            const m = r.master || r.primary || {};
+            const s = r.slave || r.standby || {};
+            let info=`主: ${m.host||''}:${m.port||''}\n`;
+            info += `从节点: ${s.ok?'正常':'异常'} ${s.host||''}:${s.port||''}\n`;
+            if (m.connected_replicas != null) info += `已连接从库数: ${m.connected_replicas}\n`;
+            if (m.lag_seconds != null) info += `复制延迟: ${m.lag_seconds}s\n`;
+            alert(info);
+        } else alert('错误: '+(r.error||'unknown'));
+    }catch(e){alert('请求失败: '+e.message);}
+}
+
+async function checkDmStatus(id) {
+    const cfg = allConfigs.find(c => c.id == id);
+    try {
+        const r = await fetch(`/api/db/status/${id}`).then(r => r.json());
+        if (r.ok) {
+            const clusterType = (cfg && cfg.dameng_subtype === 'dsc') ? 'dsc' : (r.cluster_type || 'standby');
+            const dbType = clusterType === 'dsc' ? '达梦 DSC 集群' : '达梦主备';
+            const m = r.primary || r.master || {};
+            const s = r.standby || r.slave || {};
+            let info = `【${dbType}】\n主库: ${m.host||''}:${m.port||''}\n备库: ${s.host||''}:${s.port||''}\n状态: ${r.summary || 'unknown'}`;
+            if (clusterType === 'dsc') info += `\n集群模式: 关停测试`;
+            alert(info);
+        } else alert('错误: ' + (r.error || 'unknown'));
+    } catch (e) { alert('请求失败: ' + e.message); }
+}
+
+async function checkKbStatus(id) {
+    const cfg = allConfigs.find(c => c.id == id);
+    try {
+        const r = await fetch(`/api/db/status/${id}`).then(r => r.json());
+        if (r.ok) {
+            const clusterType = (cfg && cfg.kingbase_subtype === 'kdc') ? 'kdc' : (r.cluster_type || 'standby');
+            const dbType = clusterType === 'kdc' ? '金仓 KDC 集群' : '金仓主备';
+            const m = r.primary || r.master || {};
+            const s = r.standby || r.slave || {};
+            let info = `【${dbType}】\n主库: ${m.host||''}:${m.port||''}\n备库: ${s.host||''}:${s.port||''}\n状态: ${r.summary || 'unknown'}`;
+            if (clusterType === 'kdc') info += `\n集群模式: 关停测试`;
+            alert(info);
+        } else alert('错误: ' + (r.error || 'unknown'));
+    } catch (e) { alert('请求失败: ' + e.message); }
+}
+
+</script>
+{% endblock %}

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}应急演练平台{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Oracle 特有样式 */
+        .oracle-badge { background:#EDE9FE; color:#7C3AED; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .mysql-badge { background:#FEF3C7; color:#D97706; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .dm-badge    { background:#FFE4E6; color:#BE123C; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .kb-badge    { background:#E0F2FE; color:#0369A1; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .og-badge    { background:#EDE9FE; color:#6D28D9; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .ob-badge    { background:#FEF3C7; color:#B45309; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .tidb-badge  { background:#FCE7F3; color:#BE185D; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .mongo-badge { background:#D1FAE5; color:#047857; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .hg-badge    { background:#E0F2FE; color:#0369A1; font-size:.72rem; padding:2px 8px; border-radius:12px; font-weight:600; }
+        .db-type-tabs { display:flex; gap:4px; background:var(--slate-100); border-radius:var(--radius-md); padding:3px; width:fit-content; margin-bottom:var(--space-4); }
+        .db-type-tab { padding:6px 16px; border-radius:var(--radius-sm); font-size:.8rem; font-weight:600; border:none; cursor:pointer; transition:all .15s; background:transparent; color:var(--slate-500); }
+        .db-type-tab.active { background:#fff; color:var(--slate-900); box-shadow:var(--shadow-sm); }
+
+        /* 集群切换模式选择器（新增配置 modal 顶部） */
+        .cluster-mode-toggle {
+          display: flex; gap: 10px; align-items: stretch;
+          background: var(--slate-50); border: 1px solid var(--slate-200);
+          border-radius: 12px; padding: 10px 12px; margin-bottom: var(--space-3);
+        }
+        .cluster-mode-label { font-weight: 600; color: var(--slate-700); display: flex; align-items: center; }
+        .cluster-mode-btn {
+          flex: 1; display: flex; flex-direction: column; align-items: flex-start;
+          gap: 2px; padding: 8px 14px;
+          border: 1px solid var(--slate-200); border-radius: 10px;
+          background: #fff; cursor: pointer; transition: all 0.15s;
+          font-size: 0.86rem; font-weight: 700; color: var(--slate-600);
+          text-align: left;
+        }
+        .cluster-mode-btn .cm-hint { font-size: .7rem; color: var(--slate-500); font-weight: 400; }
+        .cluster-mode-btn:hover { transform: translateY(-1px); }
+        .cluster-mode-btn.active[data-mode="replica"] {
+          background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+          border-color: #10B981; color: #047857;
+        }
+        .cluster-mode-btn.active[data-mode="shutdown"] {
+          background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
+          border-color: #DC2626; color: #B91C1C;
+        }
+        .db-type-section-label {
+          font-size: 0.74rem; font-weight: 700; color: var(--slate-500);
+          text-transform: uppercase; letter-spacing: .04em;
+          margin: var(--space-2) 0 var(--space-2);
+          padding-bottom: 4px;
+          border-bottom: 1px dashed var(--slate-200);
+          display: block !important;
+        }
+
+        /* 切换演练页 cluster-mode-btn 标签 */
+        .cluster-mode-btn .cm-label { font-size: 0.92rem; font-weight: 700; }
+        .cluster-mode-btn .cm-sub   { font-size: 0.72rem; color: var(--slate-500); font-weight: 400; margin-top: 2px; }
+        .cluster-mode-btn.active[data-mode="replica"] .cm-sub { color: #047857; opacity: .8; }
+        .cluster-mode-btn.active[data-mode="shutdown"] .cm-sub { color: #B91C1C; opacity: .8; }
+
+        /* 搜索框 */
+        .config-search-box {
+            display: flex; align-items: center; gap: 6px;
+            background: #fff; border: 1px solid var(--slate-200);
+            border-radius: var(--radius-md); padding: 4px 10px;
+            min-width: 240px; transition: border-color .15s, box-shadow .15s;
+        }
+        .config-search-box:focus-within {
+            border-color: var(--teal-500, #0D9488);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, .15);
+        }
+        .config-search-box i.bi-search { color: var(--slate-400); font-size: .9rem; }
+        .config-search-box input {
+            border: none; outline: none; background: transparent;
+            flex: 1; font-size: .85rem; color: var(--slate-800);
+            min-width: 0;
+        }
+        .config-search-box input::placeholder { color: var(--slate-400); }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="{% if request.path == '/ai-assistant' %}hide-fab{% endif %}">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="sidebar-brand-icon"><i class="bi bi-shield-check"></i></div>
+            <div class="sidebar-brand-text">
+                <h1>应急演练平台</h1>
+                <span>High Availability Drill</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section">导航</div>
+            <a href="/" class="sidebar-link {% if request.path == '/' %}active{% endif %}">
+                <i class="bi bi-speedometer2"></i> <span>仪表盘</span>
+            </a>
+            <a href="/configure" class="sidebar-link {% if request.path == '/configure' %}active{% endif %}">
+                <i class="bi bi-sliders2"></i> <span>配置管理</span>
+            </a>
+            <a href="/switchover" class="sidebar-link {% if request.path == '/switchover' %}active{% endif %}">
+                <i class="bi bi-arrow-left-right"></i> <span>切换演练</span>
+            </a>
+            <div class="sidebar-section">记录</div>
+            <a href="/history" class="sidebar-link {% if request.path == '/history' %}active{% endif %}">
+                <i class="bi bi-clock-history"></i> <span>历史记录</span>
+            </a>
+            <div class="sidebar-section">AI</div>
+            <a href="/ai-settings" id="sidebarAiConfigLink" class="sidebar-link {% if request.path == '/ai-settings' %}active{% endif %}">
+                <i class="bi bi-robot"></i> <span>AI 模型配置</span>
+            </a>
+            <a href="/ai-assistant" class="sidebar-link {% if request.path == '/ai-assistant' %}active{% endif %}" id="sidebarAiBtn">
+                <i class="bi bi-chat-dots"></i> <span>AI 助手</span>
+            </a>
+            <div class="sidebar-section">账户</div>
+            <a href="/profile" class="sidebar-link {% if request.path == '/profile' %}active{% endif %}">
+                <i class="bi bi-key"></i> <span>修改密码</span>
+            </a>
+            {% if current_user and current_user.role == 'admin' %}
+            <a href="/admin/users" class="sidebar-link {% if request.path == '/admin/users' %}active{% endif %}">
+                <i class="bi bi-people"></i> <span>用户管理</span>
+            </a>
+            {% endif %}
+            <a href="/logout" class="sidebar-link">
+                <i class="bi bi-box-arrow-right"></i> <span>退出登录</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            {% if current_user %}
+            <span style="color:var(--slate-400);display:block;">{{ current_user.username }}</span>
+            <span style="color:var(--slate-600);font-size:.65rem;">{% if current_user.role == 'admin' %}管理员{% else %}普通用户{% endif %}</span>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- 主内容 -->
+    <div class="main-content">
+        <!-- 顶部栏 -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <span class="topbar-title">{% block page_title %}仪表盘{% endblock %}</span>
+            </div>
+            <div class="topbar-right">
+                <div class="topbar-ai-status {% if not active_ai %}offline{% endif %}" id="topbarAiStatus">
+                    <span class="dot"></span>
+                    <span>{% if active_ai %}AI 就绪: {{ active_ai.model_name }}{% else %}AI 未配置{% endif %}</span>
+                </div>
+                <span class="text-sm" style="color:var(--slate-400)">{{ current_time|default('') }}</span>
+            </div>
+        </header>
+
+        <div class="page-content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- AI 聊天面板 -->
+    {% include 'ai_panel.html' %}
+
+    <!-- AI 助手悬浮按钮 -->
+    <button class="ai-fab" id="aiFabBtn" onclick="toggleAIPanel()" title="AI 助手 (Ctrl+K)">
+        <i class="bi bi-chat-dots-fill"></i>
+    </button>
+
+    <script>
+    // 全局 AI 面板控制
+    function toggleAIPanel() {
+        const panel = document.getElementById('aiChatPanel');
+        const fab = document.getElementById('aiFabBtn');
+        if (panel) panel.classList.toggle('open');
+        if (fab) fab.classList.toggle('active');
+    }
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'k') {
+            e.preventDefault();
+            toggleAIPanel();
+        }
+    });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
